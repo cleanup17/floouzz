@@ -1,0 +1,98 @@
+{
+  "$schema": "https://claude.ai/schema/settings.json",
+
+  "model": "claude-sonnet-4-6",
+  "effortLevel": "high",
+  "includeCoAuthoredBy": false,
+
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest *)",
+      "Bash(python -m black *)",
+      "Bash(python -m isort *)",
+      "Bash(python -m flake8 *)",
+      "Bash(python -m mypy *)",
+      "Bash(docker compose ps)",
+      "Bash(docker compose logs *)",
+      "Bash(docker compose build *)",
+      "Bash(docker compose up *)",
+      "Bash(docker compose restart *)",
+      "Bash(docker compose exec *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git checkout *)",
+      "Bash(git branch *)",
+      "Bash(pip install *)",
+      "Bash(pip list)",
+      "Bash(curl -s -o /dev/null *)",
+      "Bash(curl -s http://localhost*)",
+      "Read(./app/**)",
+      "Read(./tests/**)",
+      "Read(./docs/**)",
+      "Read(./migrations/**)",
+      "Read(./docker-compose.yml)",
+      "Read(./Dockerfile*)",
+      "Read(./requirements*.txt)",
+      "Read(./CLAUDE.md)"
+    ],
+
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./.env.local)",
+      "Read(./.env.production)",
+      "Read(./secrets/**)",
+      "Read(./config/credentials*)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)",
+      "Read(**/id_rsa*)",
+      "Bash(curl * SERPAPI_KEY*)",
+      "Bash(curl * APIFY_TOKEN*)",
+      "Bash(curl * DEEPL_API_KEY*)",
+      "Bash(curl * ANTHROPIC_API_KEY*)",
+      "Bash(echo *SERPAPI*)",
+      "Bash(echo *APIFY*)",
+      "Bash(echo *ANTHROPIC*)",
+      "Bash(echo *DEEPL*)",
+      "Bash(rm -rf *)",
+      "Bash(drop table*)",
+      "Bash(DROP TABLE*)",
+      "Bash(docker compose down -v)",
+      "Bash(git push --force*)",
+      "Bash(git push origin main*)"
+    ]
+  },
+
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cmd=\"$1\"; if echo \"$cmd\" | grep -qiE \"(SERPAPI_KEY|APIFY_TOKEN|DEEPL_API_KEY|ANTHROPIC_API_KEY|password|secret|token).*=.*[A-Za-z0-9]\"; then echo \"BLOQUE : ne pas logger des secrets en clair\"; exit 2; fi' -- \"${input.command}\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash(git commit*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'git diff HEAD~1 HEAD -- \"*.py\" \"*.html\" \"*.yml\" | grep -qE \"(api_key|API_KEY|SERPAPI|APIFY|DEEPL|ANTHROPIC|password|secret)\\s*=\\s*['\\''\\\"][[A-Za-z0-9]\" && echo \"ATTENTION : possible secret dans le commit\" && exit 2 || exit 0'"
+          }
+        ]
+      }
+    ]
+  },
+
+  "env": {
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONUNBUFFERED": "1"
+  }
+}

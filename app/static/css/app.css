@@ -1,0 +1,35 @@
+/* Styles complémentaires Floouzz */
+
+/* Animation de chargement pendant l'analyse */
+.htmx-request .loader {
+    display: flex !important;
+}
+
+.htmx-request .btn-text {
+    display: none;
+}
+
+/* Barre de score animée */
+.score-bar {
+    transition: width 0.8s ease-out;
+}
+
+/* Transitions HTMX */
+.htmx-settling {
+    opacity: 0;
+}
+
+.htmx-added {
+    opacity: 0;
+    animation: fadeIn 0.4s ease-out forwards;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Badge verdict */
+.badge-explorer { background-color: #059669; color: white; }
+.badge-watchlist { background-color: #d97706; color: white; }
+.badge-abandonner { background-color: #dc2626; color: white; }

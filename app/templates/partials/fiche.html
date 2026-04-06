@@ -1,0 +1,152 @@
+<!-- Fiche niche — résultat d'analyse (fragment HTMX) -->
+<div class="bg-gray-900 border border-gray-700 rounded-xl p-6 space-y-6 animate-[fadeIn_0.4s_ease-out]">
+
+    <!-- En-tête -->
+    <div class="flex items-start justify-between">
+        <div>
+            <h2 class="text-2xl font-bold text-white uppercase">{{ niche.mot_cle }}</h2>
+            <p class="text-sm text-gray-500 mt-1">
+                Analyse du {{ analyse.created_at.strftime('%d/%m/%Y à %H:%M') }}
+            </p>
+        </div>
+        <div class="text-right">
+            <div class="text-4xl font-bold {% if analyse.score_global > 70 %}text-green-400{% elif analyse.score_global >= 50 %}text-yellow-400{% else %}text-red-400{% endif %}">
+                {{ analyse.score_global }}<span class="text-lg text-gray-500">/100</span>
+            </div>
+            <span class="inline-block mt-1 px-3 py-1 rounded-full text-xs font-semibold badge-{{ analyse.verdict }}">
+                {% if analyse.verdict == 'explorer' %}A explorer
+                {% elif analyse.verdict == 'watchlist' %}Watchlist
+                {% else %}Abandonner{% endif %}
+            </span>
+        </div>
+    </div>
+
+    <!-- Scores détaillés -->
+    <div class="space-y-3">
+        <!-- Demande -->
+        <div>
+            <div class="flex justify-between text-sm mb-1">
+                <span class="text-gray-300">
+                    {% if analyse.score_demande > 60 %}&#10003;{% elif analyse.score_demande >= 40 %}&#9888;{% else %}&#10007;{% endif %}
+                    Demande
+                </span>
+                <span class="{% if analyse.score_demande > 60 %}text-green-400{% elif analyse.score_demande >= 40 %}text-yellow-400{% else %}text-red-400{% endif %}">
+                    {{ analyse.score_demande }}/100
+                </span>
+            </div>
+            <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
+                <div class="score-bar h-full rounded-full {% if analyse.score_demande > 60 %}bg-green-500{% elif analyse.score_demande >= 40 %}bg-yellow-500{% else %}bg-red-500{% endif %}"
+                     style="width: {{ analyse.score_demande }}%"></div>
+            </div>
+        </div>
+
+        <!-- Douleur -->
+        <div>
+            <div class="flex justify-between text-sm mb-1">
+                <span class="text-gray-300">
+                    {% if analyse.score_douleur > 60 %}&#10003;{% elif analyse.score_douleur >= 40 %}&#9888;{% else %}&#10007;{% endif %}
+                    Douleur
+                </span>
+                <span class="text-gray-500">{{ analyse.score_douleur }}/100 <span class="text-xs">(Phase 2)</span></span>
+            </div>
+            <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
+                <div class="score-bar h-full rounded-full bg-gray-600" style="width: {{ analyse.score_douleur }}%"></div>
+            </div>
+        </div>
+
+        <!-- Concurrence -->
+        <div>
+            <div class="flex justify-between text-sm mb-1">
+                <span class="text-gray-300">
+                    {% if analyse.score_concurrence > 60 %}&#10003;{% elif analyse.score_concurrence >= 40 %}&#9888;{% else %}&#10007;{% endif %}
+                    Concurrence
+                </span>
+                <span class="text-gray-500">{{ analyse.score_concurrence }}/100 <span class="text-xs">(Phase 2)</span></span>
+            </div>
+            <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
+                <div class="score-bar h-full rounded-full bg-gray-600" style="width: {{ analyse.score_concurrence }}%"></div>
+            </div>
+        </div>
+
+        <!-- Monétisation -->
+        <div>
+            <div class="flex justify-between text-sm mb-1">
+                <span class="text-gray-300">
+                    {% if analyse.score_monetisation > 60 %}&#10003;{% elif analyse.score_monetisation >= 40 %}&#9888;{% else %}&#10007;{% endif %}
+                    Monétisation
+                </span>
+                <span class="text-gray-500">{{ analyse.score_monetisation }}/100 <span class="text-xs">(Phase 2)</span></span>
+            </div>
+            <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
+                <div class="score-bar h-full rounded-full bg-gray-600" style="width: {{ analyse.score_monetisation }}%"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Opportunité -->
+    <div class="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
+        <h3 class="text-sm font-semibold text-gray-400 uppercase mb-2">Opportunite identifiee</h3>
+        <p class="text-gray-200">{{ analyse.opportunite }}</p>
+    </div>
+
+    <!-- Données brutes Google Trends -->
+    {% for signal in analyse.signaux %}
+    {% if signal.source == 'google_trends' and signal.donnees %}
+    <details class="bg-gray-800/30 border border-gray-700/50 rounded-lg">
+        <summary class="px-4 py-3 text-sm font-medium text-gray-400 cursor-pointer hover:text-gray-200 transition">
+            Donnees brutes — Google Trends
+        </summary>
+        <div class="px-4 pb-4 space-y-2 text-sm">
+            {% if signal.donnees.get('erreur') %}
+            <p class="text-red-400">{{ signal.donnees.erreur }}</p>
+            {% else %}
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-gray-800 rounded p-2">
+                    <span class="text-gray-500">Moyenne</span>
+                    <span class="block text-white font-medium">{{ signal.donnees.moyenne }}</span>
+                </div>
+                <div class="bg-gray-800 rounded p-2">
+                    <span class="text-gray-500">Derniere valeur</span>
+                    <span class="block text-white font-medium">{{ signal.donnees.derniere_valeur }}</span>
+                </div>
+                <div class="bg-gray-800 rounded p-2">
+                    <span class="text-gray-500">Pic</span>
+                    <span class="block text-white font-medium">{{ signal.donnees.pic }}</span>
+                </div>
+                <div class="bg-gray-800 rounded p-2">
+                    <span class="text-gray-500">Tendance</span>
+                    <span class="block text-white font-medium">
+                        {{ signal.donnees.tendance }}
+                        ({{ signal.donnees.variation_pct }}%)
+                    </span>
+                </div>
+            </div>
+            {% if signal.donnees.get('requetes_associees') %}
+            <div class="mt-3">
+                <span class="text-gray-500 text-xs">Requetes associees :</span>
+                <div class="flex flex-wrap gap-2 mt-1">
+                    {% for q in signal.donnees.requetes_associees %}
+                    <span class="px-2 py-1 bg-gray-800 rounded text-xs text-gray-300">{{ q.query }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
+    </details>
+    {% endif %}
+    {% endfor %}
+
+    <!-- Historique -->
+    <div class="flex items-center justify-between pt-2 border-t border-gray-800">
+        <span class="text-sm text-gray-500">
+            {{ nb_analyses }} analyse{{ 's' if nb_analyses > 1 else '' }} pour cette niche
+        </span>
+        {% if nb_analyses > 1 %}
+        <a href="/niche/{{ niche.id }}" class="text-sm text-floouzz-500 hover:text-floouzz-400 transition">
+            Voir l'historique &rarr;
+        </a>
+        {% endif %}
+    </div>
+
+</div>

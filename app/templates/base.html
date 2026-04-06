@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Floouzz{% endblock %} — Find your signal in the noise</title>
+
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        floouzz: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                            900: '#14532d',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+
+    <!-- Styles complémentaires -->
+    <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body class="h-full bg-gray-950 text-gray-100">
+
+    <!-- Header -->
+    <header class="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-50">
+        <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+            <a href="/" class="flex items-center gap-2">
+                <span class="text-2xl font-bold text-floouzz-500">Floouzz</span>
+                <span class="text-xs text-gray-500 mt-1">v0.1</span>
+            </a>
+            <p class="text-sm text-gray-500 hidden sm:block">Find your signal in the noise.</p>
+        </div>
+    </header>
+
+    <!-- Contenu principal -->
+    <main class="max-w-5xl mx-auto px-4 py-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-gray-800 mt-16">
+        <div class="max-w-5xl mx-auto px-4 py-6 text-center text-sm text-gray-600">
+            Floouzz — Outil de recherche de niches &middot; Phase 1 MVP
+        </div>
+    </footer>
+
+</body>
+</html>

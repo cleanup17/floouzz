@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Recherche de niche{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+
+    <!-- Hero -->
+    <div class="text-center mb-12">
+        <h1 class="text-4xl font-bold mb-3">
+            Trouvez votre <span class="text-floouzz-500">signal</span>
+        </h1>
+        <p class="text-gray-400 text-lg">
+            Entrez un mot-clé ou secteur. Floouzz analyse les signaux de marché et vous donne un score actionnable en moins de 60 secondes.
+        </p>
+    </div>
+
+    <!-- Formulaire de recherche -->
+    <form
+        hx-post="/analyser"
+        hx-target="#resultat"
+        hx-swap="innerHTML"
+        hx-indicator="#loader"
+        class="mb-10"
+    >
+        <div class="flex gap-3">
+            <input
+                type="text"
+                name="mot_cle"
+                placeholder="Ex : automatisation comptable, coaching IA, micro-SaaS RH..."
+                required
+                minlength="2"
+                maxlength="255"
+                autofocus
+                class="flex-1 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-floouzz-500 focus:border-transparent transition"
+            >
+            <button
+                type="submit"
+                class="px-6 py-3 bg-floouzz-600 hover:bg-floouzz-700 text-white font-medium rounded-lg transition flex items-center gap-2"
+            >
+                <span class="btn-text">Analyser</span>
+                <!-- Loader pendant l'analyse -->
+                <span id="loader" class="loader hidden items-center gap-2">
+                    <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    Analyse...
+                </span>
+            </button>
+        </div>
+    </form>
+
+    <!-- Zone de résultat (remplie par HTMX) -->
+    <div id="resultat"></div>
+
+    <!-- Niches récentes -->
+    {% if niches_recentes %}
+    <div class="mt-12">
+        <h2 class="text-lg font-semibold text-gray-300 mb-4">Niches analysées récemment</h2>
+        <div class="space-y-2">
+            {% for item in niches_recentes %}
+            <a
+                href="/niche/{{ item.niche.id }}"
+                class="flex items-center justify-between p-3 bg-gray-800/50 hover:bg-gray-800 rounded-lg border border-gray-700/50 transition group"
+            >
+                <span class="text-white group-hover:text-floouzz-500 transition">{{ item.niche.mot_cle }}</span>
+                <span class="text-sm text-gray-500">
+                    {{ item.nb_analyses }} analyse{{ 's' if item.nb_analyses > 1 else '' }}
+                </span>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

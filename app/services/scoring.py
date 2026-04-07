@@ -1,30 +1,49 @@
 """Service de scoring — calcul du score global et du verdict."""
 
 
+# Mapping source → dimension de score
+SOURCE_TO_DIMENSION = {
+    # Demande (40%)
+    "google_trends": "demande",
+    "google_news": "demande",
+    # Douleur (20%)
+    "reddit": "douleur",
+    "hackernews": "douleur",
+    "google_search_paa": "douleur",
+    # Concurrence (20%) — score inverse : peu de concurrents = bon score
+    "producthunt": "concurrence",
+    "google_search_concurrence": "concurrence",
+    # Monetisation (20%)
+    "google_jobs": "monetisation",
+    "google_search_ads": "monetisation",
+}
+
+
 def calculer_score_global(signaux: list[dict]) -> dict:
     """
-    Calcule le score global à partir des signaux collectés.
-
-    En Phase 1, seul Google Trends est disponible.
-    Le score de demande vient de Google Trends.
-    Les autres scores sont mis à 50 (neutre) en attendant les sources Phase 2.
-
-    Retourne un dict avec les scores et le verdict.
+    Calcule le score global a partir des signaux collectes.
+    Chaque signal alimente une dimension (demande, douleur, concurrence, monetisation).
+    Si plusieurs signaux alimentent la meme dimension, on fait la moyenne.
+    Les dimensions sans signal restent a 50 (neutre).
     """
-    # Récupérer le score Google Trends
-    score_demande = 50
+    dimensions: dict[str, list[int]] = {
+        "demande": [],
+        "douleur": [],
+        "concurrence": [],
+        "monetisation": [],
+    }
+
     for signal in signaux:
-        if signal["source"] == "google_trends":
-            score_demande = signal["score_partiel"]
+        source = signal.get("source", "")
+        dimension = SOURCE_TO_DIMENSION.get(source)
+        if dimension:
+            dimensions[dimension].append(signal.get("score_partiel", 0))
 
-    # Phase 1 : scores non encore alimentés → valeur neutre
-    score_douleur = 50
-    score_concurrence = 50
-    score_monetisation = 50
+    score_demande = _moyenne(dimensions["demande"], defaut=50)
+    score_douleur = _moyenne(dimensions["douleur"], defaut=50)
+    score_concurrence = _moyenne(dimensions["concurrence"], defaut=50)
+    score_monetisation = _moyenne(dimensions["monetisation"], defaut=50)
 
-    # Score global pondéré
-    # Demande = 40% (seule source fiable en V1)
-    # Autres = 20% chacun (neutres pour l'instant)
     score_global = int(
         score_demande * 0.40
         + score_douleur * 0.20
@@ -32,7 +51,6 @@ def calculer_score_global(signaux: list[dict]) -> dict:
         + score_monetisation * 0.20
     )
 
-    # Verdict selon les règles métier
     if score_global > 70:
         verdict = "explorer"
     elif score_global >= 50:
@@ -40,8 +58,10 @@ def calculer_score_global(signaux: list[dict]) -> dict:
     else:
         verdict = "abandonner"
 
-    # Opportunité narrative
-    opportunite = _generer_opportunite(score_demande, score_global, verdict)
+    opportunite = _generer_opportunite(
+        score_demande, score_douleur, score_concurrence, score_monetisation,
+        score_global, verdict, dimensions,
+    )
 
     return {
         "score_global": score_global,
@@ -54,35 +74,52 @@ def calculer_score_global(signaux: list[dict]) -> dict:
     }
 
 
-def _generer_opportunite(score_demande: int, score_global: int, verdict: str) -> str:
-    """Génère un texte d'opportunité basé sur les scores (Phase 1 — sans LLM)."""
+def _moyenne(values: list[int], defaut: int = 50) -> int:
+    """Moyenne d'une liste d'entiers, ou valeur par defaut si vide."""
+    if not values:
+        return defaut
+    return int(sum(values) / len(values))
+
+
+def _generer_opportunite(
+    score_demande: int,
+    score_douleur: int,
+    score_concurrence: int,
+    score_monetisation: int,
+    score_global: int,
+    verdict: str,
+    dimensions: dict[str, list[int]],
+) -> str:
+    """Genere un texte d'opportunite base sur les scores."""
+    scores = {
+        "demande": score_demande,
+        "douleur": score_douleur,
+        "concurrence": score_concurrence,
+        "monetisation": score_monetisation,
+    }
+    forces = [k for k, v in scores.items() if v >= 70]
+    faiblesses = [k for k, v in scores.items() if v < 40]
+    sans_donnees = [k for k, v in dimensions.items() if not v]
+
+    parties = []
+
     if verdict == "explorer":
-        if score_demande >= 70:
-            return (
-                "Forte demande détectée sur Google Trends. "
-                "Le marché montre un intérêt soutenu — à creuser avec les signaux Reddit et Product Hunt en Phase 2."
-            )
-        return (
-            "Score global encourageant. "
-            "La demande est présente — l'analyse sera plus précise avec les sources complémentaires."
-        )
+        parties.append(f"Score global fort ({score_global}/100).")
+        if forces:
+            parties.append(f"Points forts : {', '.join(forces)}.")
+        if sans_donnees:
+            parties.append(f"Analyse incomplete sur : {', '.join(sans_donnees)} — a confirmer.")
     elif verdict == "watchlist":
-        if score_demande >= 60:
-            return (
-                "Demande modérée mais existante. "
-                "À surveiller — les signaux complémentaires (douleur, concurrence) pourraient révéler une opportunité."
-            )
-        return (
-            "Signal faible mais pas nul. "
-            "À réévaluer dans 1-2 mois pour voir si la tendance évolue."
-        )
+        parties.append(f"Signal modere ({score_global}/100).")
+        if forces:
+            parties.append(f"Potentiel sur : {', '.join(forces)}.")
+        if faiblesses:
+            parties.append(f"Attention sur : {', '.join(faiblesses)}.")
+        parties.append("A reevaluer dans 1-2 mois.")
     else:
-        if score_demande > 30:
-            return (
-                "Demande insuffisante pour justifier un investissement immédiat. "
-                "Le marché n'est pas encore mûr ou le mot-clé est trop générique."
-            )
-        return (
-            "Très peu de demande détectée. "
-            "Ce créneau ne semble pas viable en l'état — envisager un angle différent."
-        )
+        parties.append(f"Signal faible ({score_global}/100).")
+        if faiblesses:
+            parties.append(f"Insuffisant sur : {', '.join(faiblesses)}.")
+        parties.append("Ce creneau ne semble pas viable en l'etat.")
+
+    return " ".join(parties)

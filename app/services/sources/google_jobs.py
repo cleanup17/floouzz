@@ -1,4 +1,4 @@
-"""Source de signaux : Google Jobs via SerpAPI."""
+"""Source de signaux : Google Jobs via SerpAPI — metiers qui recrutent."""
 
 import logging
 from datetime import datetime, timezone
@@ -15,63 +15,67 @@ SERPAPI_BASE_URL = "https://serpapi.com/search.json"
 
 async def fetch_google_jobs(mot_cle: str, config: dict) -> list[SourceResult]:
     """
-    Interroge Google Jobs via SerpAPI.
-    Retourne le nombre d'offres et les principales.
+    Mode Decouverte : scanner les offres d'emploi par categorie.
+    Utilise des requetes larges par domaine pour detecter ou ca recrute.
     """
     if not settings.SERPAPI_KEY:
         return [SourceResult.error("SERPAPI_KEY non configuree dans .env")]
 
-    params = {
-        "api_key": settings.SERPAPI_KEY,
-        "engine": "google_jobs",
-        "q": mot_cle,
-        "gl": config.get("gl", "fr"),
-        "hl": config.get("hl", "fr"),
-    }
+    # Requetes par domaine — on detecte ou ca embauche
+    queries = config.get("queries", [
+        "développeur IA",
+        "automatisation",
+        "e-commerce manager",
+        "data analyst",
+        "no-code",
+    ])
 
-    try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.get(SERPAPI_BASE_URL, params=params)
-            response.raise_for_status()
-            data = response.json()
-
-        jobs = data.get("jobs_results", [])
-        nb_jobs = len(jobs)
-
-        if nb_jobs >= 30:
-            score = 100
-        elif nb_jobs >= 15:
-            score = 75
-        elif nb_jobs >= 5:
-            score = 50
-        elif nb_jobs >= 1:
-            score = 25
-        else:
-            score = 0
-
-        top_jobs = [
-            {
-                "titre": j.get("title", ""),
-                "entreprise": j.get("company_name", ""),
-                "lieu": j.get("location", ""),
-            }
-            for j in jobs[:5]
-        ]
-
-        donnees = {
-            "mot_cle": mot_cle,
-            "nb_offres": nb_jobs,
-            "top_offres": top_jobs,
-            "collecte": datetime.now(timezone.utc).isoformat(),
+    results = []
+    for query in queries[:5]:
+        params = {
+            "api_key": settings.SERPAPI_KEY,
+            "engine": "google_jobs",
+            "q": query,
+            "gl": config.get("gl", "fr"),
+            "hl": config.get("hl", "fr"),
         }
 
-        return [SourceResult(
-            titre=f"Google Jobs : {nb_jobs} offres pour '{mot_cle}'",
-            url=f"https://www.google.com/search?q={mot_cle}&ibp=htl;jobs",
-            donnees=donnees,
-            score_partiel=score,
-        )]
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                response = await client.get(SERPAPI_BASE_URL, params=params)
+                response.raise_for_status()
+                data = response.json()
 
-    except Exception as e:
-        logger.error(f"Google Jobs erreur pour '{mot_cle}': {e}")
-        return [SourceResult.error(str(e))]
+            jobs = data.get("jobs_results", [])
+            nb_jobs = len(jobs)
+
+            if nb_jobs == 0:
+                continue
+
+            top_jobs = [
+                {
+                    "titre": j.get("title", ""),
+                    "entreprise": j.get("company_name", ""),
+                    "lieu": j.get("location", ""),
+                }
+                for j in jobs[:3]
+            ]
+
+            results.append(SourceResult(
+                titre=f"Emploi : {nb_jobs}+ offres '{query}'",
+                url=f"https://www.google.com/search?q={query}&ibp=htl;jobs",
+                donnees={
+                    "requete": query,
+                    "nb_offres": nb_jobs,
+                    "top_offres": top_jobs,
+                    "source": "google_jobs",
+                    "collecte": datetime.now(timezone.utc).isoformat(),
+                },
+                score_partiel=min(100, nb_jobs * 5),
+            ))
+
+        except Exception as e:
+            logger.error(f"Google Jobs erreur pour '{query}': {e}")
+            continue
+
+    return results

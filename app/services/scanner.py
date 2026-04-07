@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session
 from app.models import Decouverte, Preference, Source, Thematique
-from app.services.enrichissement import enrichir_decouverte
+from app.services.enrichissement import enrichir_batch, MAX_SIGNAUX_PAR_BATCH
 from app.services.sources.base import fetch_source
 
 logger = logging.getLogger(__name__)
@@ -108,24 +108,31 @@ async def run_enrichissement() -> int:
             logger.info("Aucune decouverte a enrichir")
             return 0
 
+        # Limiter a 30 signaux max (les plus recents)
+        decouvertes = decouvertes[:30]
+
+        # Enrichir par batch de MAX_SIGNAUX_PAR_BATCH
         total = 0
-        for decouverte in decouvertes:
+        for i in range(0, len(decouvertes), MAX_SIGNAUX_PAR_BATCH):
+            batch = decouvertes[i:i + MAX_SIGNAUX_PAR_BATCH]
+            signaux_data = [{"titre": d.titre, "donnees": d.donnees} for d in batch]
+
             try:
-                enrichi = await enrichir_decouverte(
-                    titre=decouverte.titre,
-                    donnees=decouverte.donnees,
-                    thematiques=thematiques,
-                    preferences_ignorees=preferences_ignorees,
+                enrichis = await enrichir_batch(
+                    signaux_data,
+                    thematiques,
+                    preferences_ignorees,
                 )
 
-                decouverte.score_pertinence = enrichi["score_pertinence"]
-                decouverte.resume = enrichi["resume"]
-                decouverte.tags = enrichi["tags"]
-                decouverte.mot_cle_suggere = enrichi.get("mot_cle_suggere")
-                total += 1
+                for decouverte, enrichi in zip(batch, enrichis):
+                    decouverte.score_pertinence = enrichi["score_pertinence"]
+                    decouverte.resume = enrichi["resume"]
+                    decouverte.tags = enrichi["tags"]
+                    decouverte.mot_cle_suggere = enrichi.get("mot_cle_suggere")
+                    total += 1
 
             except Exception as e:
-                logger.error(f"Erreur enrichissement decouverte {decouverte.id}: {e}")
+                logger.error(f"Erreur enrichissement batch : {e}")
                 continue
 
         await db.commit()

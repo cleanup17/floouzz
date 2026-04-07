@@ -10,54 +10,78 @@ from app.models import Source
 logger = logging.getLogger(__name__)
 
 DEFAULT_SOURCES = [
+    # --- Gratuit (sans cle) ---
     {
-        "nom": "Google Trends FR",
+        "nom": "Hacker News — posts populaires",
+        "type": "api",
+        "config": {"fetcher": "hackernews"},
+        "cle_api_ref": None,
+        "actif": True,
+        "cron_expr": "0 6 * * *",
+    },
+    # --- SerpAPI (1 appel chacune) ---
+    {
+        "nom": "Google Trends — ce qui monte en France",
         "type": "serpapi",
         "config": {"engine": "google_trends", "gl": "FR", "hl": "fr"},
         "cle_api_ref": "SERPAPI_KEY",
+        "actif": True,
         "cron_expr": "0 6 * * *",
     },
     {
-        "nom": "Google Jobs FR",
+        "nom": "Google News — actu tech",
         "type": "serpapi",
-        "config": {"engine": "google_jobs", "gl": "fr", "hl": "fr"},
+        "config": {"engine": "google_news", "gl": "fr", "hl": "fr", "topic": "TECHNOLOGY"},
         "cle_api_ref": "SERPAPI_KEY",
+        "actif": True,
         "cron_expr": "0 6 * * *",
     },
     {
-        "nom": "Google Search (CPC + PAA)",
+        "nom": "Google News — actu business",
         "type": "serpapi",
-        "config": {"engine": "google", "gl": "fr", "hl": "fr"},
+        "config": {"engine": "google_news", "gl": "fr", "hl": "fr", "topic": "BUSINESS"},
         "cle_api_ref": "SERPAPI_KEY",
+        "actif": True,
         "cron_expr": "0 6 * * *",
     },
     {
-        "nom": "Google News FR",
+        "nom": "Google Jobs — metiers qui recrutent",
         "type": "serpapi",
-        "config": {"engine": "google_news", "gl": "fr", "hl": "fr"},
+        "config": {
+            "engine": "google_jobs", "gl": "fr", "hl": "fr",
+            "queries": ["developpeur IA", "automatisation", "e-commerce manager", "data analyst", "no-code"],
+        },
         "cle_api_ref": "SERPAPI_KEY",
+        "actif": True,
         "cron_expr": "0 6 * * *",
     },
+    # --- Apify ---
     {
-        "nom": "Reddit",
+        "nom": "Reddit — posts chauds communautes tech/business",
         "type": "apify_actor",
         "config": {
             "actor_id": "trudax/reddit-scraper",
             "input": {
-                "subreddits": ["SaaS", "smallbusiness", "startups", "Entrepreneur", "artificial"],
+                "subreddits": ["SaaS", "smallbusiness", "startups", "Entrepreneur", "artificial", "ecommerce", "nocode"],
                 "sort": "hot",
                 "time": "week",
-                "maxItems": 30,
+                "maxItems": 50,
             },
         },
         "cle_api_ref": "APIFY_TOKEN",
+        "actif": True,
         "cron_expr": "0 6 * * *",
     },
     {
-        "nom": "Hacker News",
-        "type": "api",
-        "config": {"fetcher": "hackernews"},
-        "cle_api_ref": None,
+        "nom": "Product Hunt — produits du jour",
+        "type": "apify_actor",
+        "config": {
+            "actor_id": "dainty_screw/producthunt-scraper",
+            "fetcher": "producthunt",
+            "input": {"listType": "today", "maxItems": 15},
+        },
+        "cle_api_ref": "APIFY_TOKEN",
+        "actif": True,
         "cron_expr": "0 6 * * *",
     },
 ]

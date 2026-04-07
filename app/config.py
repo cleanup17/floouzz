@@ -4,9 +4,9 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    """Paramètres chargés depuis les variables d'environnement."""
+    """Parametres charges depuis les variables d'environnement."""
 
-    # Base de données
+    # Base de donnees
     DATABASE_URL: str = "postgresql+asyncpg://floouzz:floouzz_secret@db:5432/floouzz"
 
     # Application
@@ -14,6 +14,15 @@ class Settings(BaseSettings):
     APP_DEBUG: bool = True
     APP_HOST: str = "0.0.0.0"
     APP_PORT: int = 8000
+
+    # Cles API (optionnelles — les sources qui en ont besoin verifient leur presence)
+    SERPAPI_KEY: str | None = None
+    APIFY_TOKEN: str | None = None
+    DEEPL_API_KEY: str | None = None
+    ANTHROPIC_API_KEY: str | None = None
+
+    # Webhook
+    WEBHOOK_TOKEN: str | None = None
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

@@ -3,8 +3,8 @@
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, Query, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,9 +20,19 @@ router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
 
-@router.get("/", response_class=HTMLResponse)
-async def page_accueil(request: Request, db: AsyncSession = Depends(get_db)):
-    """Page d'accueil avec formulaire de recherche et liste des niches récentes."""
+@router.get("/")
+async def redirect_accueil():
+    """Redirige l'accueil vers le mode Decouverte."""
+    return RedirectResponse(url="/decouverte/", status_code=302)
+
+
+@router.get("/analyser", response_class=HTMLResponse)
+async def page_analyser(
+    request: Request,
+    mot_cle: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Page d'analyse avec formulaire de recherche et liste des niches recentes."""
     # Récupérer les niches récentes avec le nombre d'analyses
     stmt = (
         select(Niche, func.count(Analyse.id).label("nb_analyses"))
@@ -40,6 +50,7 @@ async def page_accueil(request: Request, db: AsyncSession = Depends(get_db)):
     return templates.TemplateResponse("index.html", {
         "request": request,
         "niches_recentes": niches_recentes,
+        "mot_cle_prefill": mot_cle or "",
     })
 
 

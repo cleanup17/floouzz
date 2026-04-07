@@ -1,0 +1,54 @@
+<div id="signal-{{ signal.id }}" class="bg-gray-900 border border-gray-700 rounded-lg p-5 transition hover:border-gray-600">
+    <div class="flex items-start justify-between gap-4">
+        <!-- Score + contenu -->
+        <div class="flex gap-4 flex-1">
+            <!-- Badge score -->
+            <div class="flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center font-bold text-lg
+                {% if signal.score_pertinence and signal.score_pertinence > 70 %}bg-green-900/50 text-green-400 border border-green-800
+                {% elif signal.score_pertinence and signal.score_pertinence >= 50 %}bg-yellow-900/50 text-yellow-400 border border-yellow-800
+                {% else %}bg-red-900/50 text-red-400 border border-red-800{% endif %}">
+                {{ signal.score_pertinence or '?' }}
+            </div>
+
+            <div class="flex-1 min-w-0">
+                <!-- Titre -->
+                <h3 class="text-white font-medium truncate">{{ signal.titre }}</h3>
+
+                <!-- Resume -->
+                {% if signal.resume %}
+                <p class="text-gray-400 text-sm mt-1">{{ signal.resume }}</p>
+                {% endif %}
+
+                <!-- Tags -->
+                {% if signal.tags %}
+                <div class="flex flex-wrap gap-1 mt-2">
+                    {% for tag in signal.tags %}
+                    <a href="/decouverte/?tag={{ tag }}" class="px-2 py-0.5 bg-gray-800 rounded text-xs text-gray-300 hover:bg-gray-700 transition">{{ tag }}</a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex gap-2 flex-shrink-0">
+            <button
+                hx-post="/decouverte/ignorer/{{ signal.id }}"
+                hx-target="#signal-{{ signal.id }}"
+                hx-swap="outerHTML"
+                class="px-3 py-1 text-sm text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded transition"
+                title="Pas pertinent"
+            >
+                &#10005;
+            </button>
+            <button
+                hx-post="/decouverte/approfondir/{{ signal.id }}"
+                hx-target="#signal-{{ signal.id }}"
+                hx-swap="outerHTML"
+                class="px-3 py-1 text-sm bg-floouzz-600/20 text-floouzz-400 hover:bg-floouzz-600/40 rounded transition"
+            >
+                Approfondir
+            </button>
+        </div>
+    </div>
+</div>

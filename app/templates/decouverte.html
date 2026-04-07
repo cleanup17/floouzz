@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Decouverte{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+
+    <!-- En-tete -->
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-white">Signaux du jour</h1>
+            <p class="text-sm text-gray-500 mt-1">
+                {{ date_scan.strftime('%d/%m/%Y') }} — {{ nb_affiches }} signal{{ 's' if nb_affiches > 1 else '' }} pertinent{{ 's' if nb_affiches > 1 else '' }} / {{ total_signaux }} collecte{{ 's' if total_signaux > 1 else '' }}
+            </p>
+        </div>
+        <button
+            hx-post="/decouverte/rafraichir"
+            hx-target="#contenu-signaux"
+            hx-swap="innerHTML"
+            hx-indicator="#loader-refresh"
+            class="px-4 py-2 bg-floouzz-600 hover:bg-floouzz-700 text-white text-sm font-medium rounded-lg transition flex items-center gap-2"
+        >
+            <span class="btn-text">Rafraichir</span>
+            <span id="loader-refresh" class="loader hidden items-center gap-2">
+                <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                Scan...
+            </span>
+        </button>
+    </div>
+
+    <!-- Filtres thematiques -->
+    <div class="flex flex-wrap gap-2 mb-6">
+        <a href="/decouverte/"
+           class="px-3 py-1 rounded-full text-sm font-medium transition {% if not tag_actif %}bg-floouzz-600 text-white{% else %}bg-gray-800 text-gray-400 hover:bg-gray-700{% endif %}">
+            Tous ({{ nb_affiches }})
+        </a>
+        {% for tag, count in tags_count.items() %}
+        <a href="/decouverte/?tag={{ tag }}"
+           class="px-3 py-1 rounded-full text-sm font-medium transition {% if tag_actif == tag %}bg-floouzz-600 text-white{% else %}bg-gray-800 text-gray-400 hover:bg-gray-700{% endif %}">
+            {{ tag }} ({{ count }})
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Liste des signaux -->
+    <div id="contenu-signaux" class="space-y-4">
+        {% if signaux %}
+            {% for signal in signaux %}
+                {% include "partials/signal_carte.html" %}
+            {% endfor %}
+        {% else %}
+            <div class="text-center py-12 text-gray-500">
+                <p class="text-lg">Aucun signal aujourd'hui</p>
+                <p class="text-sm mt-2">Clique sur "Rafraichir" pour lancer un scan, ou verifie tes sources dans les parametres.</p>
+            </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

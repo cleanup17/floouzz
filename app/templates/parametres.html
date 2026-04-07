@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}Parametres{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-10">
+
+    <h1 class="text-2xl font-bold text-white">Parametres</h1>
+
+    <!-- Cles API -->
+    <section>
+        <h2 class="text-lg font-semibold text-gray-300 mb-4">Cles API (.env)</h2>
+        <div class="space-y-2">
+            {% for cle in cles_api %}
+            <div class="flex items-center justify-between p-3 bg-gray-900 border border-gray-700 rounded-lg">
+                <div class="flex items-center gap-3">
+                    <span class="w-3 h-3 rounded-full {% if cle.configuree %}bg-green-500{% else %}bg-red-500{% endif %}"></span>
+                    <span class="text-white font-medium text-sm">{{ cle.nom }}</span>
+                </div>
+                <span class="text-sm {% if cle.configuree %}text-gray-400{% else %}text-red-400{% endif %}">
+                    {{ cle.masquee }}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+        <p class="text-xs text-gray-600 mt-2">Les cles se configurent dans le fichier .env — jamais en base de donnees.</p>
+    </section>
+
+    <!-- Sources -->
+    <section>
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-300">Sources</h2>
+            <button onclick="document.getElementById('modale-source').classList.remove('hidden')"
+                    class="px-3 py-1 bg-floouzz-600 hover:bg-floouzz-700 text-white text-sm rounded-lg transition">
+                + Ajouter
+            </button>
+        </div>
+        <div class="space-y-2">
+            {% for source in sources %}
+            <div class="flex items-center justify-between p-3 bg-gray-900 border border-gray-700 rounded-lg">
+                <div class="flex items-center gap-3">
+                    <span class="w-3 h-3 rounded-full {% if source.actif %}bg-green-500{% else %}bg-gray-600{% endif %}"></span>
+                    <div>
+                        <span class="text-white text-sm font-medium">{{ source.nom }}</span>
+                        <span class="text-xs text-gray-500 ml-2">{{ source.type }}</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-gray-600">{{ source.cle_api_ref or 'gratuit' }}</span>
+                    <button
+                        hx-post="/api/sources/{{ source.id }}/tester"
+                        hx-target="#test-result-{{ source.id }}"
+                        hx-swap="innerHTML"
+                        class="px-2 py-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition">
+                        Tester
+                    </button>
+                    <button
+                        hx-post="/api/sources/{{ source.id }}/toggle"
+                        hx-swap="none"
+                        class="px-2 py-1 text-xs {% if source.actif %}bg-yellow-900/30 text-yellow-400{% else %}bg-green-900/30 text-green-400{% endif %} rounded transition">
+                        {% if source.actif %}Desactiver{% else %}Activer{% endif %}
+                    </button>
+                    <button
+                        hx-delete="/api/sources/{{ source.id }}"
+                        hx-swap="none"
+                        hx-confirm="Supprimer cette source ?"
+                        class="px-2 py-1 text-xs bg-red-900/30 text-red-400 rounded transition">
+                        Supprimer
+                    </button>
+                </div>
+            </div>
+            <div id="test-result-{{ source.id }}"></div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- Modale ajout source -->
+    <div id="modale-source" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div class="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-lg">
+            <h3 class="text-lg font-semibold text-white mb-4">Nouvelle source</h3>
+            <form hx-post="/api/sources/" hx-swap="none" class="space-y-4">
+                <div>
+                    <label class="text-sm text-gray-400">Nom</label>
+                    <input name="nom" required class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm">
+                </div>
+                <div>
+                    <label class="text-sm text-gray-400">Type</label>
+                    <select name="type" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm">
+                        <option value="serpapi">SerpAPI</option>
+                        <option value="apify_actor">Apify Actor</option>
+                        <option value="apify_url">Apify URL</option>
+                        <option value="api">API directe</option>
+                        <option value="webhook">Webhook</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-sm text-gray-400">Config (JSON)</label>
+                    <textarea name="config" rows="4" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm font-mono">{}</textarea>
+                </div>
+                <div>
+                    <label class="text-sm text-gray-400">Cle API (.env)</label>
+                    <select name="cle_api_ref" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm">
+                        <option value="">Aucune (gratuit)</option>
+                        <option value="SERPAPI_KEY">SERPAPI_KEY</option>
+                        <option value="APIFY_TOKEN">APIFY_TOKEN</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" name="actif" checked class="rounded">
+                    <label class="text-sm text-gray-400">Active</label>
+                </div>
+                <div class="flex justify-end gap-3 mt-4">
+                    <button type="button" onclick="document.getElementById('modale-source').classList.add('hidden')"
+                            class="px-4 py-2 text-sm text-gray-400 hover:text-white transition">Annuler</button>
+                    <button type="submit" class="px-4 py-2 bg-floouzz-600 hover:bg-floouzz-700 text-white text-sm rounded-lg transition">Creer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Thematiques -->
+    <section>
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-300">Thematiques</h2>
+        </div>
+        <div class="flex flex-wrap gap-2 mb-4">
+            {% for theme in thematiques %}
+            <div class="flex items-center gap-1 px-3 py-1 bg-gray-800 rounded-full">
+                <span class="text-sm text-gray-300">{{ theme.nom }}</span>
+                <button
+                    hx-delete="/parametres/thematiques/{{ theme.id }}"
+                    hx-swap="none"
+                    class="text-gray-600 hover:text-red-400 text-xs ml-1">&#10005;</button>
+            </div>
+            {% endfor %}
+        </div>
+        <form hx-post="/parametres/thematiques" hx-swap="none" class="flex gap-2">
+            <input name="nom" placeholder="Nouvelle thematique..." required minlength="2"
+                   class="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm">
+            <button type="submit" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded transition">Ajouter</button>
+        </form>
+    </section>
+
+    <!-- Stats scan -->
+    <section>
+        <h2 class="text-lg font-semibold text-gray-300 mb-4">Scan quotidien</h2>
+        <div class="bg-gray-900 border border-gray-700 rounded-lg p-4">
+            <div class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <span class="text-gray-500">Signaux collectes aujourd'hui</span>
+                    <span class="block text-white font-medium text-lg">{{ nb_scan_jour }}</span>
+                </div>
+                <div>
+                    <span class="text-gray-500">Heure du cron</span>
+                    <span class="block text-white font-medium">06:00</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+</div>
+{% endblock %}

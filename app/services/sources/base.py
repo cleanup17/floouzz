@@ -84,5 +84,5 @@ def _ensure_registered() -> None:
     register_fetcher("serpapi_news", fetch_google_news)
     register_fetcher("apify_actor", fetch_reddit)
     register_fetcher("apify_producthunt", fetch_producthunt)
-    register_fetcher("apify_hackernews", fetch_hackernews)
+    register_fetcher("hackernews", fetch_hackernews)
     register_fetcher("apify_url", fetch_apify_url)

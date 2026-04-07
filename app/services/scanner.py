@@ -65,7 +65,10 @@ async def run_collecte(mots_cles: list[str] | None = None) -> int:
 
                     # Determiner le type de fetcher selon la config de la source
                     source_type = source.type
-                    if source.type == "serpapi" and "engine" in source.config:
+                    # Les sources avec un fetcher specifique dans la config
+                    if "fetcher" in source.config:
+                        source_type = source.config["fetcher"]
+                    elif source.type == "serpapi" and "engine" in source.config:
                         engine = source.config["engine"]
                         if engine == "google_jobs":
                             source_type = "serpapi_jobs"

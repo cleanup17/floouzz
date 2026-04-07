@@ -51,12 +51,10 @@
       "Read(**/id_rsa*)",
       "Bash(curl * SERPAPI_KEY*)",
       "Bash(curl * APIFY_TOKEN*)",
-      "Bash(curl * DEEPL_API_KEY*)",
       "Bash(curl * ANTHROPIC_API_KEY*)",
       "Bash(echo *SERPAPI*)",
       "Bash(echo *APIFY*)",
       "Bash(echo *ANTHROPIC*)",
-      "Bash(echo *DEEPL*)",
       "Bash(rm -rf *)",
       "Bash(drop table*)",
       "Bash(DROP TABLE*)",
@@ -73,7 +71,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'cmd=\"$1\"; if echo \"$cmd\" | grep -qiE \"(SERPAPI_KEY|APIFY_TOKEN|DEEPL_API_KEY|ANTHROPIC_API_KEY|password|secret|token).*=.*[A-Za-z0-9]\"; then echo \"BLOQUE : ne pas logger des secrets en clair\"; exit 2; fi' -- \"${input.command}\""
+            "command": "bash -c 'cmd=\"$1\"; if echo \"$cmd\" | grep -qiE \"(SERPAPI_KEY|APIFY_TOKEN|ANTHROPIC_API_KEY|password|secret|token).*=.*[A-Za-z0-9]\"; then echo \"BLOQUE : ne pas logger des secrets en clair\"; exit 2; fi' -- \"${input.command}\""
           }
         ]
       }

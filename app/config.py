@@ -18,7 +18,6 @@ class Settings(BaseSettings):
     # Cles API (optionnelles — les sources qui en ont besoin verifient leur presence)
     SERPAPI_KEY: str | None = None
     APIFY_TOKEN: str | None = None
-    DEEPL_API_KEY: str | None = None
     ANTHROPIC_API_KEY: str | None = None
 
     # Webhook

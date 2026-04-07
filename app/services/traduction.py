@@ -1,47 +1,43 @@
-"""Service de traduction FR→EN via DeepL API Free."""
+"""Service de traduction FR→EN via Claude API."""
 
+import json
 import logging
 
-import httpx
+import anthropic
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-DEEPL_API_URL = "https://api-free.deepl.com/v2/translate"
-
 
 async def traduire_mot_cle(mot_cle: str) -> str:
     """
-    Traduit un mot-cle du francais vers l'anglais via DeepL.
+    Traduit un mot-cle du francais vers l'anglais via Claude API.
     Retourne le mot-cle original si la traduction echoue ou si la cle n'est pas configuree.
     """
-    if not settings.DEEPL_API_KEY:
-        logger.debug("DEEPL_API_KEY non configuree — mot-cle non traduit")
+    if not settings.ANTHROPIC_API_KEY:
+        logger.debug("ANTHROPIC_API_KEY non configuree — mot-cle non traduit")
+        return mot_cle
+
+    # Si le mot-cle est deja en anglais (heuristique simple), pas de traduction
+    if mot_cle.isascii() and " " not in mot_cle:
         return mot_cle
 
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            response = await client.post(
-                DEEPL_API_URL,
-                data={
-                    "auth_key": settings.DEEPL_API_KEY,
-                    "text": mot_cle,
-                    "source_lang": "FR",
-                    "target_lang": "EN",
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
+        client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+        message = await client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=50,
+            messages=[{
+                "role": "user",
+                "content": f"Traduis ce mot-cle du francais vers l'anglais. Reponds UNIQUEMENT avec la traduction, rien d'autre.\n\n{mot_cle}",
+            }],
+        )
 
-        translations = data.get("translations", [])
-        if translations:
-            traduction = translations[0].get("text", mot_cle)
-            logger.info(f"Traduction : '{mot_cle}' → '{traduction}'")
-            return traduction
-
-        return mot_cle
+        traduction = message.content[0].text.strip().strip('"').strip("'")
+        logger.info(f"Traduction : '{mot_cle}' → '{traduction}'")
+        return traduction
 
     except Exception as e:
-        logger.error(f"Erreur traduction DeepL pour '{mot_cle}': {e}")
+        logger.error(f"Erreur traduction Claude pour '{mot_cle}': {e}")
         return mot_cle

@@ -31,7 +31,6 @@ async def page_parametres(request: Request, db: AsyncSession = Depends(get_db)):
     cles_api = [
         {"nom": "SERPAPI_KEY", "masquee": _masquer_cle(settings.SERPAPI_KEY), "configuree": bool(settings.SERPAPI_KEY)},
         {"nom": "APIFY_TOKEN", "masquee": _masquer_cle(settings.APIFY_TOKEN), "configuree": bool(settings.APIFY_TOKEN)},
-        {"nom": "DEEPL_API_KEY", "masquee": _masquer_cle(settings.DEEPL_API_KEY), "configuree": bool(settings.DEEPL_API_KEY)},
         {"nom": "ANTHROPIC_API_KEY", "masquee": _masquer_cle(settings.ANTHROPIC_API_KEY), "configuree": bool(settings.ANTHROPIC_API_KEY)},
     ]
 

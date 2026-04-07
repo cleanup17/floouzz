@@ -29,6 +29,16 @@
     to { opacity: 1; transform: translateY(0); }
 }
 
+/* Loader HTMX — cache par defaut, affiche pendant la requete */
+.htmx-indicator {
+    display: none !important;
+}
+
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator {
+    display: flex !important;
+}
+
 /* Badge verdict */
 .badge-explorer { background-color: #059669; color: white; }
 .badge-watchlist { background-color: #d97706; color: white; }

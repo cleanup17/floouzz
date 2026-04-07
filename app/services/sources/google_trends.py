@@ -15,15 +15,89 @@ SERPAPI_BASE_URL = "https://serpapi.com/search.json"
 
 async def fetch_serpapi_trends(mot_cle: str, config: dict) -> list[SourceResult]:
     """
-    Interroge Google Trends via SerpAPI.
-    Config attendue : {"engine": "google_trends", "gl": "fr", "hl": "fr"}
+    Mode Decouverte : recupere les recherches en forte hausse (trending).
+    Le mot_cle est ignore — on cherche ce qui EMERGE, pas ce qu'on connait.
+    """
+    if not settings.SERPAPI_KEY:
+        return [SourceResult.error("SERPAPI_KEY non configuree dans .env")]
+
+    # Trending searches = ce qui monte en ce moment
+    params = {
+        "api_key": settings.SERPAPI_KEY,
+        "engine": "google_trends_trending_now",
+        "geo": config.get("gl", "FR"),
+        "hl": config.get("hl", "fr"),
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.get(SERPAPI_BASE_URL, params=params)
+            response.raise_for_status()
+            data = response.json()
+
+        trending = data.get("trending_searches", [])
+
+        if not trending:
+            return [SourceResult(
+                titre="Google Trends : aucune tendance detectee",
+                donnees={"erreur": "Pas de donnees trending"},
+                score_partiel=0,
+            )]
+
+        results = []
+        for item in trending[:15]:
+            query = item.get("query", "")
+            volume = item.get("search_volume", 0)
+            articles = item.get("articles", [])
+
+            # Score base sur le volume de recherche
+            if volume and isinstance(volume, int):
+                if volume >= 100000:
+                    score = 90
+                elif volume >= 50000:
+                    score = 75
+                elif volume >= 10000:
+                    score = 60
+                elif volume >= 5000:
+                    score = 45
+                else:
+                    score = 30
+            else:
+                score = 50
+
+            article_titles = [a.get("title", "") for a in articles[:3]] if articles else []
+
+            results.append(SourceResult(
+                titre=f"Trending : {query}",
+                url=f"https://trends.google.com/trends/explore?q={query}&geo=FR",
+                donnees={
+                    "query": query,
+                    "volume": volume,
+                    "articles_associes": article_titles,
+                    "source": "google_trends_trending",
+                    "collecte": datetime.now(timezone.utc).isoformat(),
+                },
+                score_partiel=score,
+            ))
+
+        return results
+
+    except Exception as e:
+        logger.error(f"Google Trends Trending erreur : {e}")
+        return [SourceResult.error(str(e))]
+
+
+async def fetch_trends_for_keyword(mot_cle: str, config: dict) -> list[SourceResult]:
+    """
+    Mode Analyse : recherche un mot-cle specifique sur Google Trends.
+    Utilise uniquement quand on approfondit une niche.
     """
     if not settings.SERPAPI_KEY:
         return [SourceResult.error("SERPAPI_KEY non configuree dans .env")]
 
     params = {
         "api_key": settings.SERPAPI_KEY,
-        "engine": config.get("engine", "google_trends"),
+        "engine": "google_trends",
         "q": mot_cle,
         "geo": config.get("gl", "FR"),
         "hl": config.get("hl", "fr"),
@@ -46,12 +120,11 @@ async def fetch_serpapi_trends(mot_cle: str, config: dict) -> list[SourceResult]
                 score_partiel=0,
             )]
 
-        values = []
-        dates = []
-        for point in timeline:
-            val = point.get("values", [{}])[0].get("extracted_value", 0)
-            values.append(val)
-            dates.append(point.get("date", ""))
+        values = [
+            point.get("values", [{}])[0].get("extracted_value", 0)
+            for point in timeline
+        ]
+        dates = [point.get("date", "") for point in timeline]
 
         moyenne = sum(values) / len(values) if values else 0
         derniere_valeur = values[-1] if values else 0
@@ -64,14 +137,6 @@ async def fetch_serpapi_trends(mot_cle: str, config: dict) -> list[SourceResult]
 
         score_partiel = min(100, int(moyenne * 0.4 + derniere_valeur * 0.4 + tendance_hausse))
 
-        related = data.get("related_queries", {})
-        top_queries = []
-        if "rising" in related:
-            top_queries = [
-                {"query": q.get("query", ""), "value": q.get("extracted_value", 0)}
-                for q in related["rising"][:5]
-            ]
-
         donnees = {
             "mot_cle": mot_cle,
             "periode": "12 derniers mois",
@@ -82,7 +147,6 @@ async def fetch_serpapi_trends(mot_cle: str, config: dict) -> list[SourceResult]
             "tendance": "hausse" if fin > debut else "baisse" if fin < debut else "stable",
             "variation_pct": round((fin - debut) / max(debut, 1) * 100, 1),
             "series": dict(zip(dates, values)),
-            "requetes_associees": top_queries,
             "collecte": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -93,18 +157,15 @@ async def fetch_serpapi_trends(mot_cle: str, config: dict) -> list[SourceResult]
             score_partiel=score_partiel,
         )]
 
-    except httpx.HTTPStatusError as e:
-        logger.error(f"SerpAPI HTTP error pour '{mot_cle}': {e.response.status_code}")
-        return [SourceResult.error(f"SerpAPI erreur HTTP {e.response.status_code}")]
     except Exception as e:
-        logger.error(f"SerpAPI erreur pour '{mot_cle}': {e}")
+        logger.error(f"SerpAPI Trends erreur pour '{mot_cle}': {e}")
         return [SourceResult.error(str(e))]
 
 
-# Compat Phase 1 — ancien format pour le router niches.py existant
+# Compat Phase 1
 async def fetch_google_trends(mot_cle: str) -> dict:
-    """Wrapper de compatibilite Phase 1 → Phase 2."""
-    results = await fetch_serpapi_trends(mot_cle, {"engine": "google_trends", "gl": "FR", "hl": "fr"})
+    """Wrapper de compatibilite Phase 1."""
+    results = await fetch_trends_for_keyword(mot_cle, {"gl": "FR", "hl": "fr"})
     if results:
         r = results[0]
         return {"donnees": r.donnees, "score_partiel": r.score_partiel}

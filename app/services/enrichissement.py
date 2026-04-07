@@ -65,12 +65,26 @@ async def enrichir_decouverte(
         client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
         message = await client.messages.create(
             model="claude-haiku-4-5-20251001",
+            # Fallback: essayer "claude-3-5-haiku-20241022" si le modele ci-dessus echoue
             max_tokens=300,
             messages=[{"role": "user", "content": prompt}],
         )
 
-        response_text = message.content[0].text.strip()
-        result = json.loads(response_text)
+        response_text = message.content[0].text.strip() if message.content else ""
+        logger.warning(f"Reponse Claude brute ({len(response_text)} chars) : {response_text[:300]}")
+
+        # Extraire le JSON meme si Claude ajoute du texte autour
+        import re
+        json_match = re.search(r'\{[^{}]*\}', response_text, re.DOTALL)
+        if not json_match:
+            logger.warning(f"Pas de JSON trouve dans la reponse Claude : {response_text[:200]}")
+            return {
+                "score_pertinence": 50,
+                "resume": titre,
+                "tags": [],
+                "mot_cle_suggere": None,
+            }
+        result = json.loads(json_match.group())
 
         return {
             "score_pertinence": max(0, min(100, result.get("score_pertinence", 50))),

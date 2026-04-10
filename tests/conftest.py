@@ -10,7 +10,7 @@ defaut de pytest-asyncio 0.25).
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
@@ -82,6 +82,10 @@ class FakeResult:
     def first(self):
         return self._data[0] if self._data else None
 
+    def fetchall(self):
+        """Alias de all() pour compat avec les requetes text() SQLAlchemy."""
+        return list(self._data)
+
 
 class FakeDbSession:
     """
@@ -123,7 +127,11 @@ class FakeDbSession:
 
     # -- API utilisee par SQLAlchemy / FastAPI -----------------------------
 
-    async def execute(self, stmt):
+    async def execute(self, stmt, params=None):
+        """
+        Accepte le stmt et des params optionnels (pour les requetes text()
+        parametrees comme celles de pipeline_ia._lire_cache/_ecrire_cache).
+        """
         if not self._script:
             return FakeResult([])
         item = self._script.pop(0)
@@ -258,3 +266,205 @@ def mocks_analyser(
         "google_trends": mock_google_trends,
         "thematiques": mock_thematiques,
     }
+
+
+# ---------------------------------------------------------------------------
+# Helpers et fixtures pour les tests de services Claude (pipeline_ia, traduction)
+# ---------------------------------------------------------------------------
+
+def make_claude_response(text: str) -> MagicMock:
+    """
+    Construit un mock de reponse Claude (objet Message) avec un seul bloc texte.
+
+    Imite la structure retournee par anthropic.AsyncAnthropic().messages.create() :
+    message.content[0].text -> le texte brut de la reponse.
+
+    Utile pour les tests qui mockent l'API Claude sans appel reseau.
+    """
+    bloc = MagicMock()
+    bloc.text = text
+    message = MagicMock()
+    message.content = [bloc]
+    return message
+
+
+def make_anthropic_client(reponse_text: str | None = None) -> MagicMock:
+    """
+    Construit un mock d'AsyncAnthropic dont .messages.create est un AsyncMock
+    qui retourne make_claude_response(reponse_text).
+
+    Si reponse_text est None, create retourne un message vide (liste content vide).
+    """
+    client = MagicMock()
+    if reponse_text is None:
+        message = MagicMock()
+        message.content = []
+    else:
+        message = make_claude_response(reponse_text)
+    client.messages = MagicMock()
+    client.messages.create = AsyncMock(return_value=message)
+    return client
+
+
+@pytest.fixture
+def mock_anthropic_pipeline(monkeypatch):
+    """
+    Patche anthropic.AsyncAnthropic pour les tests de pipeline_ia.
+
+    Retourne une factory : appeler `mock_anthropic_pipeline(reponse_text)`
+    pour configurer ce que Claude renverra au prochain appel messages.create.
+    Le client est patche dans le namespace de app.services.pipeline_ia.
+    """
+    def _install(reponse_text: str | None):
+        client = make_anthropic_client(reponse_text)
+        fake_factory = MagicMock(return_value=client)
+        monkeypatch.setattr(
+            "app.services.pipeline_ia.anthropic.AsyncAnthropic", fake_factory
+        )
+        return client
+
+    return _install
+
+
+@pytest.fixture
+def mock_anthropic_traduction(monkeypatch):
+    """
+    Patche anthropic.AsyncAnthropic pour les tests de traduction.
+    Meme pattern que mock_anthropic_pipeline mais sur le namespace traduction.
+    """
+    def _install(reponse_text: str | None):
+        client = make_anthropic_client(reponse_text)
+        fake_factory = MagicMock(return_value=client)
+        monkeypatch.setattr(
+            "app.services.traduction.anthropic.AsyncAnthropic", fake_factory
+        )
+        return client
+
+    return _install
+
+
+@pytest.fixture
+def mock_anthropic_raise_pipeline(monkeypatch):
+    """
+    Patche anthropic.AsyncAnthropic dans pipeline_ia pour lever une exception
+    au prochain appel messages.create. Utile pour tester les fallbacks reseau.
+    """
+    def _install(exc: Exception):
+        client = MagicMock()
+        client.messages = MagicMock()
+        client.messages.create = AsyncMock(side_effect=exc)
+        fake_factory = MagicMock(return_value=client)
+        monkeypatch.setattr(
+            "app.services.pipeline_ia.anthropic.AsyncAnthropic", fake_factory
+        )
+        return client
+
+    return _install
+
+
+@pytest.fixture
+def mock_anthropic_raise_traduction(monkeypatch):
+    """Variant de mock_anthropic_raise pour le namespace traduction."""
+    def _install(exc: Exception):
+        client = MagicMock()
+        client.messages = MagicMock()
+        client.messages.create = AsyncMock(side_effect=exc)
+        fake_factory = MagicMock(return_value=client)
+        monkeypatch.setattr(
+            "app.services.traduction.anthropic.AsyncAnthropic", fake_factory
+        )
+        return client
+
+    return _install
+
+
+@pytest.fixture
+def anthropic_key(monkeypatch):
+    """
+    Force settings.ANTHROPIC_API_KEY a une valeur de test pour les tests
+    qui veulent traverser le 'if not settings.ANTHROPIC_API_KEY' guard.
+
+    Sans cette fixture, les tests verraient la valeur du .env local
+    (potentiellement vraie cle API — ne pas l'utiliser pour les vrais appels).
+    """
+    monkeypatch.setattr("app.services.pipeline_ia.settings.ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr("app.services.traduction.settings.ANTHROPIC_API_KEY", "test-key")
+    return "test-key"
+
+
+@pytest.fixture
+def no_anthropic_key(monkeypatch):
+    """
+    Force settings.ANTHROPIC_API_KEY a None dans les deux modules.
+    Pour tester les fallbacks quand la cle API est absente.
+    """
+    monkeypatch.setattr("app.services.pipeline_ia.settings.ANTHROPIC_API_KEY", None)
+    monkeypatch.setattr("app.services.traduction.settings.ANTHROPIC_API_KEY", None)
+
+
+# ---------------------------------------------------------------------------
+# Assertion helper : valide la structure d'un resultat pipeline_ia
+# ---------------------------------------------------------------------------
+
+def assert_resultat_pipeline_valide(resultat: dict) -> None:
+    """
+    Verifie qu'un dict retourne par pipeline_ia.analyser() respecte le contrat :
+    - cles obligatoires presentes
+    - scores dict avec les 4 dimensions
+    - types corrects
+    - bornes respectees (scores 0-10, verdict GO/WATCH/SKIP)
+    """
+    assert isinstance(resultat, dict)
+
+    cles_obligatoires = {
+        "resume_fr", "tags", "niche_detectee", "scores", "score_global",
+        "verdict", "verdict_raison", "mots_cles_seo", "risque_ymyl",
+    }
+    assert cles_obligatoires.issubset(resultat.keys()), (
+        f"Cles manquantes : {cles_obligatoires - resultat.keys()}"
+    )
+
+    assert isinstance(resultat["resume_fr"], str)
+    assert isinstance(resultat["tags"], list)
+    assert isinstance(resultat["mots_cles_seo"], list)
+    assert isinstance(resultat["risque_ymyl"], bool)
+    assert resultat["verdict"] in ("GO", "WATCH", "SKIP")
+
+    assert isinstance(resultat["score_global"], int)
+    assert 0 <= resultat["score_global"] <= 10
+
+    assert isinstance(resultat["scores"], dict)
+    for dim in ("demande", "douleur", "concurrence", "monetisation"):
+        assert dim in resultat["scores"], f"Dimension manquante : {dim}"
+        bloc = resultat["scores"][dim]
+        assert "valeur" in bloc and "justification" in bloc
+        assert 0 <= bloc["valeur"] <= 10
+        assert isinstance(bloc["justification"], str)
+
+
+# ---------------------------------------------------------------------------
+# Fixture : FakeDbSession qui simule une table cache_ia absente
+# ---------------------------------------------------------------------------
+
+class FakeDbSessionCacheAbsent(FakeDbSession):
+    """
+    Variante de FakeDbSession dont execute() leve une exception pour toute
+    requete sur cache_ia. Permet de tester la robustesse de pipeline_ia quand
+    la table n'existe pas (rejeu partiel des migrations, BDD non initialisee...).
+
+    Les requetes SQLAlchemy classiques (select/insert sur d'autres tables)
+    continuent de fonctionner normalement via le script queue_result().
+    """
+
+    async def execute(self, stmt, params=None):
+        # Detecte les requetes text() qui mentionnent cache_ia
+        stmt_str = str(stmt).lower()
+        if "cache_ia" in stmt_str:
+            raise RuntimeError("relation cache_ia does not exist")
+        return await super().execute(stmt, params)
+
+
+@pytest.fixture
+def fake_db_cache_absent() -> "FakeDbSessionCacheAbsent":
+    """Fake session qui raise sur toute requete cache_ia."""
+    return FakeDbSessionCacheAbsent()

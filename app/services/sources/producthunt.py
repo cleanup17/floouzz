@@ -7,6 +7,7 @@ import httpx
 
 from app.config import settings
 from app.services.sources.base import SourceResult
+from app.services.traduction import traduire_titres
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +44,19 @@ async def fetch_producthunt(mot_cle: str, config: dict) -> list[SourceResult]:
         if not products:
             return []
 
+        produits_retenus = sorted(
+            products, key=lambda x: x.get("votesCount", 0), reverse=True
+        )[:10]
+
+        # Traduction batch EN->FR des taglines (les noms de produits sont des
+        # marques, on ne les traduit pas — que les descriptifs). Un seul appel
+        # Claude pour le lot, avant transmission au scanner / pipeline_ia.
+        taglines_en = [p.get("tagline", "") for p in produits_retenus]
+        taglines_fr = await traduire_titres(taglines_en)
+
         results = []
-        for p in sorted(products, key=lambda x: x.get("votesCount", 0), reverse=True)[:10]:
+        for p, tagline_en, tagline_fr in zip(produits_retenus, taglines_en, taglines_fr):
             nom = p.get("name", "")
-            tagline = p.get("tagline", "")
             votes = p.get("votesCount", 0)
             product_url = p.get("url", "")
 
@@ -60,11 +70,12 @@ async def fetch_producthunt(mot_cle: str, config: dict) -> list[SourceResult]:
                 score = 40
 
             results.append(SourceResult(
-                titre=f"PH : {nom} — {tagline}",
+                titre=f"PH : {nom} — {tagline_fr}",
                 url=product_url,
                 donnees={
                     "nom": nom,
-                    "tagline": tagline,
+                    "tagline_original": tagline_en,
+                    "tagline_fr": tagline_fr,
                     "votes": votes,
                     "source": "producthunt",
                     "collecte": datetime.now(timezone.utc).isoformat(),

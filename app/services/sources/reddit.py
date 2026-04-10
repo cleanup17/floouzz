@@ -7,6 +7,7 @@ import httpx
 
 from app.config import settings
 from app.services.sources.base import SourceResult
+from app.services.traduction import traduire_titres
 
 logger = logging.getLogger(__name__)
 
@@ -49,18 +50,31 @@ async def fetch_reddit(mot_cle: str, config: dict) -> list[SourceResult]:
         if not posts:
             return []
 
-        # Filtrer les posts interessants (beaucoup de commentaires = discussion active)
-        results = []
+        # Pre-filtrage : on ne garde que les posts avec un minimum d'engagement
+        # avant de lancer la traduction (evite de payer des traductions inutiles)
+        posts_filtres = []
         for p in sorted(posts, key=lambda x: x.get("numberOfComments", 0), reverse=True)[:15]:
-            titre = p.get("title", "")
+            comments = p.get("numberOfComments", 0)
+            upvotes = p.get("upVotes", 0)
+            if comments < 5 and upvotes < 20:
+                continue
+            posts_filtres.append(p)
+
+        if not posts_filtres:
+            return []
+
+        # Traduction batch EN->FR des titres, un seul appel Claude pour tout le lot.
+        # Reddit etant majoritairement anglophone, on traduit avant le scanner /
+        # pipeline_ia qui attendent du francais en entree.
+        titres_en = [p.get("title", "") for p in posts_filtres]
+        titres_fr = await traduire_titres(titres_en)
+
+        results = []
+        for p, titre_original, titre_fr in zip(posts_filtres, titres_en, titres_fr):
             comments = p.get("numberOfComments", 0)
             upvotes = p.get("upVotes", 0)
             subreddit = p.get("subreddit", "")
             post_url = p.get("url", "")
-
-            # On garde que les posts avec un minimum d'engagement
-            if comments < 5 and upvotes < 20:
-                continue
 
             if comments >= 100:
                 score = 85
@@ -72,10 +86,11 @@ async def fetch_reddit(mot_cle: str, config: dict) -> list[SourceResult]:
                 score = 40
 
             results.append(SourceResult(
-                titre=f"r/{subreddit} : {titre}",
+                titre=f"r/{subreddit} : {titre_fr}",
                 url=post_url,
                 donnees={
-                    "titre_original": titre,
+                    "titre_original": titre_original,
+                    "titre_fr": titre_fr,
                     "subreddit": subreddit,
                     "upvotes": upvotes,
                     "commentaires": comments,

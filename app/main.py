@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.database import async_session
-from app.routers import decouvertes, niches, parametres, sources, webhooks
+from app.routers import decouvertes, exports, niches, parametres, sources, webhooks
 from app.services.seed import seed_sources_par_defaut
 
 
@@ -21,7 +21,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Floouzz",
     description="Recherche et veille de niches de marche basee sur des signaux multi-sources.",
-    version="0.2.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
 
@@ -34,3 +34,4 @@ app.include_router(niches.router)
 app.include_router(sources.router)
 app.include_router(parametres.router)
 app.include_router(webhooks.router)
+app.include_router(exports.router)

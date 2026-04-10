@@ -1,24 +1,66 @@
-"""Routes pour l'analyse et la consultation des niches."""
+"""Routes pour l'analyse et la consultation des niches (mode Analyse via pipeline_ia)."""
 
 import uuid
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models import Analyse, Niche, Signal
-from app.schemas import NicheCreate
-from app.services.scoring import calculer_score_global
+from app.models import Analyse, Niche, Signal, Thematique
+from app.services.pipeline_ia import analyser as analyser_pipeline
 from app.services.sources.google_trends import fetch_google_trends
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _construire_synthese(mot_cle: str, signaux: list[dict]) -> str:
+    """
+    Produit la synthese FR injectee dans pipeline_ia.analyser(contenu=...).
+
+    Format fixe :
+        "{mot_cle} — Tendance : {valeur}%. Interet : {description}.
+         Sources : {nb_sources} signaux collectes."
+    """
+    # Extraction des donnees Google Trends (premier signal de ce type)
+    variation_pct: float = 0.0
+    description: str = "inconnu"
+
+    for s in signaux:
+        if s.get("source") == "google_trends":
+            donnees = s.get("donnees") or {}
+            variation_pct = float(donnees.get("variation_pct", 0) or 0)
+            tendance = donnees.get("tendance", "inconnu")
+            moyenne = donnees.get("moyenne", 0)
+            description = f"{tendance}, moyenne {moyenne}/100"
+            break
+
+    nb_sources = len(signaux)
+    return (
+        f"{mot_cle} — Tendance : {variation_pct}%. "
+        f"Interet : {description}. "
+        f"Sources : {nb_sources} signaux collectes."
+    )
+
+
+async def _charger_thematiques_actives(db: AsyncSession) -> list[str]:
+    """Charge les noms des thematiques actives pour alimenter le pipeline_ia."""
+    stmt = select(Thematique.nom).where(Thematique.actif.is_(True))
+    result = await db.execute(stmt)
+    return [row[0] for row in result.all()]
+
+
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
 
 @router.get("/")
 async def redirect_accueil():
@@ -33,7 +75,6 @@ async def page_analyser(
     db: AsyncSession = Depends(get_db),
 ):
     """Page d'analyse avec formulaire de recherche et liste des niches recentes."""
-    # Récupérer les niches récentes avec le nombre d'analyses
     stmt = (
         select(Niche, func.count(Analyse.id).label("nb_analyses"))
         .outerjoin(Analyse)
@@ -56,30 +97,27 @@ async def page_analyser(
 
 @router.post("/analyser", response_class=HTMLResponse)
 async def analyser_niche(request: Request, db: AsyncSession = Depends(get_db)):
-    """Lance une analyse pour un mot-clé donné."""
+    """Lance une analyse pour un mot-cle donne via pipeline_ia."""
     form = await request.form()
     mot_cle = form.get("mot_cle", "").strip().lower()
 
     if not mot_cle or len(mot_cle) < 2:
         return templates.TemplateResponse("partials/erreur.html", {
             "request": request,
-            "message": "Le mot-clé doit contenir au moins 2 caractères.",
+            "message": "Le mot-cle doit contenir au moins 2 caracteres.",
         })
 
-    # Vérifier si la niche existe déjà
+    # Recuperer ou creer la niche
     stmt = select(Niche).where(Niche.mot_cle == mot_cle)
     result = await db.execute(stmt)
     niche = result.scalar_one_or_none()
-
-    if not niche:
+    if niche is None:
         niche = Niche(mot_cle=mot_cle)
         db.add(niche)
         await db.flush()
 
-    # Collecter les signaux (Phase 1 : Google Trends uniquement)
+    # Collecte des signaux bruts (Google Trends pour l'instant)
     trends_result = await fetch_google_trends(mot_cle)
-
-    # Créer l'analyse
     signaux_data = [
         {
             "source": "google_trends",
@@ -88,35 +126,55 @@ async def analyser_niche(request: Request, db: AsyncSession = Depends(get_db)):
         }
     ]
 
-    scores = calculer_score_global(signaux_data)
+    # Construction de la synthese injectee dans pipeline_ia
+    synthese = _construire_synthese(mot_cle, signaux_data)
+    thematiques = await _charger_thematiques_actives(db)
+
+    # Appel pipeline_ia : un seul appel Claude qui produit tout le format riche
+    resultat = await analyser_pipeline(
+        titre=mot_cle,
+        contenu=synthese,
+        donnees={"signaux": signaux_data},
+        thematiques=thematiques,
+        session=db,
+        source="analyse",
+    )
+
+    # Extraction des scores 0-10 avec leurs justifications
+    scores = resultat["scores"]
 
     analyse = Analyse(
         niche_id=niche.id,
-        score_global=scores["score_global"],
-        score_demande=scores["score_demande"],
-        score_douleur=scores["score_douleur"],
-        score_concurrence=scores["score_concurrence"],
-        score_monetisation=scores["score_monetisation"],
-        opportunite=scores["opportunite"],
-        verdict=scores["verdict"],
+        score_global=resultat["score_global"],
+        score_demande=scores["demande"]["valeur"],
+        score_douleur=scores["douleur"]["valeur"],
+        score_concurrence=scores["concurrence"]["valeur"],
+        score_monetisation=scores["monetisation"]["valeur"],
+        verdict=resultat["verdict"],
+        verdict_raison=resultat["verdict_raison"],
+        resume_fr=resultat["resume_fr"],
+        mots_cles_seo=resultat["mots_cles_seo"],
+        tags=resultat["tags"],
+        risque_ymyl=resultat["risque_ymyl"],
+        niche_detectee=resultat["niche_detectee"],
+        pipeline_ia=resultat,
     )
     db.add(analyse)
     await db.flush()
 
-    # Sauvegarder les signaux
+    # Persister les signaux bruts rattaches a l'analyse
     for s in signaux_data:
-        signal = Signal(
+        db.add(Signal(
             analyse_id=analyse.id,
             niche_id=niche.id,
             source=s["source"],
             donnees=s["donnees"],
             score_partiel=s["score_partiel"],
-        )
-        db.add(signal)
+        ))
 
     await db.commit()
 
-    # Recharger l'analyse avec ses signaux
+    # Recharger l'analyse avec ses signaux pour le rendu
     stmt = (
         select(Analyse)
         .where(Analyse.id == analyse.id)
@@ -125,11 +183,7 @@ async def analyser_niche(request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(stmt)
     analyse = result.scalar_one()
 
-    # Compter les analyses précédentes
-    stmt_count = (
-        select(func.count(Analyse.id))
-        .where(Analyse.niche_id == niche.id)
-    )
+    stmt_count = select(func.count(Analyse.id)).where(Analyse.niche_id == niche.id)
     result_count = await db.execute(stmt_count)
     nb_analyses = result_count.scalar()
 
@@ -142,19 +196,23 @@ async def analyser_niche(request: Request, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/niche/{niche_id}", response_class=HTMLResponse)
-async def page_niche(request: Request, niche_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
-    """Page détaillée d'une niche avec son historique d'analyses."""
+async def page_niche(
+    request: Request,
+    niche_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Page detaillee d'une niche avec son historique d'analyses."""
     stmt = select(Niche).where(Niche.id == niche_id)
     result = await db.execute(stmt)
     niche = result.scalar_one_or_none()
 
-    if not niche:
-        return templates.TemplateResponse("partials/erreur.html", {
-            "request": request,
-            "message": "Niche introuvable.",
-        }, status_code=404)
+    if niche is None:
+        return templates.TemplateResponse(
+            "partials/erreur.html",
+            {"request": request, "message": "Niche introuvable."},
+            status_code=404,
+        )
 
-    # Récupérer toutes les analyses avec signaux
     stmt_analyses = (
         select(Analyse)
         .where(Analyse.niche_id == niche_id)

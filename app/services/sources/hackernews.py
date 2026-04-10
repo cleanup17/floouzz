@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import httpx
 
 from app.services.sources.base import SourceResult
+from app.services.traduction import traduire_titres
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +38,16 @@ async def fetch_hackernews(mot_cle: str, config: dict) -> list[SourceResult]:
         if not hits:
             return []
 
+        hits_retenus = hits[:15]
+
+        # Traduction batch EN->FR des titres (HN est quasi 100% anglophone).
+        # Un seul appel Claude pour tout le lot, avant transmission au scanner /
+        # pipeline_ia qui attendent du francais en entree.
+        titres_en = [h.get("title", "") for h in hits_retenus]
+        titres_fr = await traduire_titres(titres_en)
+
         results = []
-        for h in hits[:15]:
-            titre = h.get("title", "")
+        for h, titre_original, titre_fr in zip(hits_retenus, titres_en, titres_fr):
             points = h.get("points", 0) or 0
             comments = h.get("num_comments", 0) or 0
             url = h.get("url", "")
@@ -55,16 +63,17 @@ async def fetch_hackernews(mot_cle: str, config: dict) -> list[SourceResult]:
             else:
                 score = 40
 
-            # Bonus Show HN (lancement de produit)
-            is_show_hn = titre.lower().startswith("show hn")
+            # Bonus Show HN detecte sur le titre original (en anglais)
+            is_show_hn = titre_original.lower().startswith("show hn")
             if is_show_hn:
                 score = min(100, score + 15)
 
             results.append(SourceResult(
-                titre=titre,
+                titre=titre_fr,
                 url=hn_url,
                 donnees={
-                    "titre_original": titre,
+                    "titre_original": titre_original,
+                    "titre_fr": titre_fr,
                     "points": points,
                     "commentaires": comments,
                     "url_externe": url,

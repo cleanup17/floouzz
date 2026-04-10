@@ -70,16 +70,38 @@ class SourceRead(BaseModel):
 # --- Decouvertes ---
 
 class DecouverteRead(BaseModel):
+    """Format pipeline_ia : scores 0-10, verdict GO/WATCH/SKIP, resume_fr."""
+
     id: uuid.UUID
     source_id: uuid.UUID
     titre: str
     url: str | None
     donnees: dict
-    score_pertinence: int | None
-    resume: str | None
+
+    # Scores 0-10
+    score_global: int | None
+    score_demande: int | None
+    score_douleur: int | None
+    score_concurrence: int | None
+    score_monetisation: int | None
+
+    # Verdict
+    verdict: str | None
+    verdict_raison: str | None
+
+    # Contenu enrichi
+    resume_fr: str | None
     tags: list[str]
+    mots_cles_seo: list[str]
+    risque_ymyl: bool
+
+    # Retour brut (debug)
+    pipeline_ia: dict | None
+
+    # Metadata
     statut: str
     mot_cle_suggere: str | None
+    niche_detectee: str | None
     niche_id: uuid.UUID | None
     scan_date: date
     created_at: datetime
@@ -117,15 +139,32 @@ class WebhookSignal(BaseModel):
 # --- Analyses ---
 
 class AnalyseRead(BaseModel):
+    """Format pipeline_ia : scores 0-10, verdict GO/WATCH/SKIP, resume_fr."""
+
     id: uuid.UUID
     niche_id: uuid.UUID
+
+    # Scores 0-10
     score_global: int | None
     score_demande: int | None
     score_douleur: int | None
     score_concurrence: int | None
     score_monetisation: int | None
-    opportunite: str | None
+
+    # Verdict
     verdict: str | None
+    verdict_raison: str | None
+
+    # Contenu enrichi
+    resume_fr: str | None
+    tags: list[str]
+    mots_cles_seo: list[str]
+    risque_ymyl: bool
+    niche_detectee: str | None
+
+    # Retour brut (debug)
+    pipeline_ia: dict | None
+
     created_at: datetime
     signaux: list[SignalRead] = []
 

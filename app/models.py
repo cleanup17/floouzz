@@ -83,6 +83,12 @@ class Analyse(Base):
     # faiblesses_detectees, top_10 (snapshot structure)
     serp_gap: Mapped[dict | None] = mapped_column(JSONB)
 
+    # Retour brut de affiliate_finder.chercher_affiliation() (Affiliate Finder)
+    # Contient : score_affiliation, verdict (AUCUN/FAIBLE/BON/EXCELLENT),
+    # verdict_raison, plateformes_detectees, programmes (avec commission/cookie),
+    # opportunites, requetes_utilisees, nb_resultats_analyses
+    affiliate_finder: Mapped[dict | None] = mapped_column(JSONB)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

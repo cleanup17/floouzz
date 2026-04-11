@@ -275,18 +275,53 @@ def mock_serp_gap(monkeypatch) -> AsyncMock:
 
 
 @pytest.fixture
+def mock_affiliate_finder(monkeypatch) -> AsyncMock:
+    """
+    Patch app.routers.niches.chercher_affiliation.
+    Retourne un resultat affiliate_finder factice conforme au contrat pour
+    que les tests de /analyser n'appellent jamais le vrai SerpAPI ni Claude.
+    """
+    mock = AsyncMock(return_value={
+        "mot_cle": "test",
+        "score_affiliation": 4,
+        "verdict": "FAIBLE",
+        "verdict_raison": "Raison affiliation de test.",
+        "plateformes_detectees": ["Amazon Associates"],
+        "programmes": [
+            {
+                "nom": "Programme test",
+                "plateforme": "Amazon Associates",
+                "commission": "5%",
+                "cookie_duree": "24h",
+                "source_url": "https://example.com",
+            },
+        ],
+        "opportunites": ["Opportunite affiliation 1"],
+        "requetes_utilisees": [
+            '"test" programme affiliation',
+            "test amazon associates OR awin",
+        ],
+        "nb_resultats_analyses": 10,
+    })
+    monkeypatch.setattr("app.routers.niches.chercher_affiliation", mock)
+    return mock
+
+
+@pytest.fixture
 def mocks_analyser(
     mock_pipeline_ia: AsyncMock,
     mock_google_trends: AsyncMock,
     mock_thematiques: AsyncMock,
     mock_serp_gap: AsyncMock,
+    mock_affiliate_finder: AsyncMock,
 ) -> dict[str, AsyncMock]:
-    """Regroupe les 4 mocks necessaires a un test du POST /analyser."""
+    """Regroupe les 5 mocks necessaires a un test du POST /analyser."""
     return {
         "pipeline_ia": mock_pipeline_ia,
         "google_trends": mock_google_trends,
         "thematiques": mock_thematiques,
         "serp_gap": mock_serp_gap,
+        "affiliate_finder": mock_affiliate_finder,
     }
 
 

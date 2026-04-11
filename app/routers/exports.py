@@ -88,6 +88,11 @@ def _rendre_markdown(niche: Niche, analyse: Analyse) -> str:
     if analyse.serp_gap:
         lignes += _rendre_serp_gap_markdown(analyse.serp_gap)
 
+    # --- Affiliation (Affiliate Finder) --------------------------------------
+    # Section ajoutee si l'analyse a un snapshot affiliate_finder (v0.5.2+).
+    if analyse.affiliate_finder:
+        lignes += _rendre_affiliate_markdown(analyse.affiliate_finder)
+
     return "\n".join(lignes)
 
 
@@ -140,6 +145,76 @@ def _rendre_serp_gap_markdown(gap: dict) -> list[str]:
             type_page = item.get("type_page") or ""
             position = item.get("position", "")
             lignes.append(f"| {position} | {titre} | {domaine} | {type_page} |")
+        lignes.append("")
+
+    return lignes
+
+
+def _rendre_affiliate_markdown(aff: dict) -> list[str]:
+    """
+    Rend la section Affiliation en Markdown a partir d'un dict affiliate_finder.
+    Retourne une liste de lignes prete a etre concatenee au reste du document.
+    """
+    # Titre avec compteur de plateformes (comme dans l'UI HTML)
+    plateformes = aff.get("plateformes_detectees") or []
+    if plateformes:
+        titre_section = f"## Affiliation ({len(plateformes)} plateforme"
+        if len(plateformes) > 1:
+            titre_section += "s"
+        titre_section += ")"
+    else:
+        titre_section = "## Affiliation"
+
+    lignes: list[str] = [
+        titre_section,
+        "",
+        f"**Score affiliation** : {aff.get('score_affiliation', 'N/A')}/10 — {aff.get('verdict', 'N/A')}",
+        "",
+    ]
+
+    raison = aff.get("verdict_raison")
+    if raison:
+        lignes += [raison, ""]
+
+    # Plateformes detectees
+    lignes += ["### Plateformes detectees", ""]
+    if plateformes:
+        lignes += [f"- {p}" for p in plateformes]
+    else:
+        lignes.append("_Aucune plateforme detectee._")
+    lignes.append("")
+
+    # Programmes identifies (tableau Markdown)
+    programmes = aff.get("programmes") or []
+    if programmes:
+        lignes += [
+            "### Programmes identifies",
+            "",
+            "| Nom | Plateforme | Commission | Cookie |",
+            "| --- | --- | --- | --- |",
+        ]
+        for prog in programmes:
+            nom = (prog.get("nom") or "").replace("|", "\\|")[:80]
+            plateforme = (prog.get("plateforme") or "").replace("|", "\\|")[:50]
+            commission = prog.get("commission") or "-"
+            cookie = prog.get("cookie_duree") or "-"
+            lignes.append(f"| {nom} | {plateforme} | {commission} | {cookie} |")
+        lignes.append("")
+
+    # Opportunites
+    opportunites = aff.get("opportunites") or []
+    lignes += ["### Opportunites", ""]
+    if opportunites:
+        lignes += [f"- {o}" for o in opportunites]
+    else:
+        lignes.append("_Aucune opportunite identifiee._")
+    lignes.append("")
+
+    # Requetes Google utilisees (tracabilite)
+    requetes = aff.get("requetes_utilisees") or []
+    if requetes:
+        lignes += ["### Requetes Google utilisees", ""]
+        lignes += [f"- `{r}`" for r in requetes]
         lignes.append("")
 
     return lignes

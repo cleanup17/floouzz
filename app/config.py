@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     # Webhook
     WEBHOOK_TOKEN: str | None = None
 
+    # Scheduler — expression cron pour le scan automatique quotidien.
+    # Format standard a 5 champs : minute heure jour mois jour_semaine.
+    # Par defaut : tous les jours a 6h du matin. Mettre a vide pour desactiver.
+    SCAN_CRON: str = "0 6 * * *"
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 

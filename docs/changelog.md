@@ -2,6 +2,32 @@
 
 > Tickets de dette technique : voir [dette-technique.md](dette-technique.md)
 
+## [0.4.0] — 2026-04-11
+
+### Scheduler automatique + dette Starlette
+
+**Ajoute :**
+- Scheduler APScheduler (`AsyncIOScheduler`) branche dans le `lifespan`
+  FastAPI : scan quotidien automatique via `run_scan_complet()`
+- Parametre `SCAN_CRON` dans `.env` (defaut `"0 6 * * *"` = 6h du matin
+  tous les jours, timezone `Europe/Paris`). Vide = scheduler desactive.
+- Options robustesse : `max_instances=1` (pas de chevauchement si un scan
+  deborde), `coalesce=True` (un seul rattrapage apres downtime)
+- 8 tests pytest sur le scheduler (validation cron, timezone, options)
+- `logging.basicConfig(level=INFO)` dans `app/main.py` pour que les logs
+  applicatifs remontent dans la sortie uvicorn
+
+**Corrige :**
+- **Dette technique Starlette `TemplateResponse`** : 8 occurrences
+  migrees vers la nouvelle API `TemplateResponse(request, name, context)`
+  sur `routers/niches.py` (5), `routers/decouvertes.py` (2),
+  `routers/parametres.py` (1). 0 warning de deprecation restant.
+
+**Tests :** 108 PASS (10 niches + 24 traduction + 42 pipeline_ia +
+24 deduplication + 8 scheduler).
+
+---
+
 ## [0.3.0] — 2026-04-10
 
 ### Phase 3 — Pipeline IA unifie + export Markdown

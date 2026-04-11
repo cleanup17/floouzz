@@ -48,8 +48,7 @@ async def page_parametres(request: Request, db: AsyncSession = Depends(get_db)):
     result_stats = await db.execute(stmt_stats)
     nb_scan_jour = result_stats.scalar() or 0
 
-    return templates.TemplateResponse("parametres.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "parametres.html", {
         "cles_api": cles_api,
         "sources": sources,
         "thematiques": thematiques,

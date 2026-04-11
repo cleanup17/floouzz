@@ -1,13 +1,96 @@
-"""Insertion des sources par defaut au premier demarrage."""
+"""Insertion des sources et thematiques par defaut au premier demarrage."""
 
 import logging
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Source
+from app.models import Source, Thematique
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Thematiques de reference (40+ categories FR avec demande prouvee)
+# ---------------------------------------------------------------------------
+#
+# Ces thematiques servent de vocabulaire commun pour :
+#   - le tagging des decouvertes par pipeline_ia
+#   - les filtres du dashboard Decouverte
+#   - le prompt pipeline_ia (liste envoyee a Claude comme contexte)
+#
+# Convention de nommage : sans accents (aligne sur les thematiques existantes
+# en base pour eviter les doublons type 'Sante' / 'Sante'). La contrainte
+# UNIQUE sur Thematique.nom garantit l'unicite cote BDD.
+#
+# Liste idempotente via seed_thematiques_manquantes() : seules les entrees
+# absentes sont inserees a chaque demarrage. Les thematiques existantes
+# (rajoutees manuellement par l'utilisatrice) sont preservees.
+DEFAULT_THEMATIQUES = [
+    # --- Core business / numerique ---
+    "IA",
+    "SaaS",
+    "E-commerce",
+    "Marketing",
+    "SEO",
+    "Automatisation",
+    "Innovation",
+    "Creation",
+    "Video",
+    # --- Metiers & parcours ---
+    "Metiers & RH",
+    "Emploi",
+    "Formation",
+    "Education",
+    "Developpement personnel",
+    # --- Sante & bien-etre ---
+    "Sante",
+    "Bien-etre",
+    "Nutrition",
+    "Fitness",
+    "Yoga",
+    "Beaute",
+    # --- Maison & quotidien ---
+    "Maison & Bricolage",
+    "Jardin",
+    "Decoration",
+    "Cuisine",
+    "Electromenager",
+    # --- Famille ---
+    "Enfants & Bebe",
+    "Animaux",
+    "Seniors",
+    "Etudiants",
+    # --- Mobilite ---
+    "Auto",
+    "Moto",
+    "Vehicules",
+    "Nautisme",
+    # --- Sport & plein air ---
+    "Sport",
+    "Randonnee",
+    "Chasse & Peche",
+    "Equitation",
+    # --- Tech & loisirs numeriques ---
+    "Informatique",
+    "High-tech",
+    "Jeux video",
+    # --- Finance & immobilier ---
+    "Finance",
+    "Immobilier",
+    # --- Voyage & tourisme ---
+    "Voyage",
+    "Tourisme",
+    # --- Culture & loisirs ---
+    "Mode",
+    "Livres & Culture",
+    "Musique",
+    "Photo",
+    "Artisanat",
+    "Collectionneurs",
+    # --- Ecologie ---
+    "Ecologie",
+]
 
 DEFAULT_SOURCES = [
     # --- Gratuit (sans cle) ---
@@ -150,6 +233,33 @@ async def seed_sources_manquantes(db: AsyncSession) -> int:
     if count:
         await db.commit()
         logger.info(f"Seed : {count} nouvelle(s) source(s) ajoutee(s)")
+    return count
+
+
+async def seed_thematiques_manquantes(db: AsyncSession) -> int:
+    """
+    Insere les thematiques de DEFAULT_THEMATIQUES qui ne sont pas encore en
+    base, identifiees par leur nom (contrainte UNIQUE sur Thematique.nom).
+    Idempotent : appelable a chaque demarrage sans creer de doublon.
+
+    Preserve les thematiques custom que l'utilisatrice a rajoutees manuellement
+    via l'UI /parametres/ — on n'efface rien, on ajoute seulement les
+    manquantes.
+    """
+    stmt = select(Thematique.nom)
+    result = await db.execute(stmt)
+    noms_existants = {row[0] for row in result.all()}
+
+    count = 0
+    for nom in DEFAULT_THEMATIQUES:
+        if nom in noms_existants:
+            continue
+        db.add(Thematique(nom=nom, actif=True))
+        count += 1
+
+    if count:
+        await db.commit()
+        logger.info(f"Seed : {count} nouvelle(s) thematique(s) ajoutee(s)")
     return count
 
 

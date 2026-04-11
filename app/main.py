@@ -12,7 +12,11 @@ from app.config import settings
 from app.database import async_session
 from app.routers import decouvertes, exports, niches, parametres, sources, webhooks
 from app.services.scanner import run_scan_complet
-from app.services.seed import seed_sources_manquantes, seed_sources_par_defaut
+from app.services.seed import (
+    seed_sources_manquantes,
+    seed_sources_par_defaut,
+    seed_thematiques_manquantes,
+)
 
 # Configuration minimale du logging pour que les logger.info() applicatifs
 # remontent dans la sortie uvicorn. Sans cela, le root logger filtre les INFO.
@@ -67,6 +71,12 @@ async def lifespan(app: FastAPI):
     async with async_session() as db:
         await seed_sources_manquantes(db)
 
+    # Seed des thematiques de reference (51 categories FR).
+    # Idempotent : ajoute uniquement les thematiques manquantes, preserve
+    # les custom ajoutees manuellement par l'utilisatrice via /parametres/.
+    async with async_session() as db:
+        await seed_thematiques_manquantes(db)
+
     # Demarrage du scheduler (si configure)
     scheduler = _creer_scheduler()
     if scheduler is not None:
@@ -84,7 +94,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Floouzz",
     description="Recherche et veille de niches de marche basee sur des signaux multi-sources.",
-    version="0.5.3",
+    version="0.5.4",
     lifespan=lifespan,
 )
 

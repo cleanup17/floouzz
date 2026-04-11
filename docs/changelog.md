@@ -2,6 +2,37 @@
 
 > Tickets de dette technique : voir [dette-technique.md](dette-technique.md)
 
+## [0.5.4] — 2026-04-11
+
+### 51 thematiques de reference (seed idempotent)
+
+**Ajoute :**
+- Constante `DEFAULT_THEMATIQUES` dans `app/services/seed.py` : liste
+  de 51 thematiques FR organisees en 11 groupes (core business, metiers,
+  sante, maison, famille, mobilite, sport, tech, finance, voyage,
+  culture, ecologie). Sans accents pour aligner sur la convention des
+  12 thematiques existantes en base.
+- Fonction `seed_thematiques_manquantes(db)` idempotente : insere
+  uniquement les thematiques absentes, preserve les custom ajoutees
+  manuellement via `/parametres/`. Appelee au demarrage via `lifespan()`.
+- 39 nouvelles thematiques inserees automatiquement au restart :
+  Animaux, Artisanat, Auto, Beaute, Bien-etre, Chasse & Peche,
+  Collectionneurs, Cuisine, Decoration, Developpement personnel,
+  Ecologie, Electromenager, Emploi, Enfants & Bebe, Equitation,
+  Etudiants, Fitness, Formation, High-tech, Immobilier, Informatique,
+  Jardin, Jeux video, Livres & Culture, Maison & Bricolage, Mode, Moto,
+  Musique, Nautisme, Nutrition, Photo, Randonnee, SEO, Seniors, Sport,
+  Tourisme, Vehicules, Voyage, Yoga.
+
+**Impact :**
+- Le vocabulaire tagging de `pipeline_ia` s'elargit a 51 categories au
+  lieu des 12 precedentes. Les prompts Claude recevront automatiquement
+  la liste complete via `_charger_thematiques_actives()`.
+- Les filtres du dashboard Decouverte exposent les 51 thematiques.
+- Les thematiques existantes (12 d'origine) sont preservees intactes.
+
+---
+
 ## [0.5.3] — 2026-04-11
 
 ### Source Google Trends RSS + fix bouton Tester

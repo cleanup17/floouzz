@@ -2,6 +2,41 @@
 
 > Tickets de dette technique : voir [dette-technique.md](dette-technique.md)
 
+## [0.5.3] — 2026-04-11
+
+### Source Google Trends RSS + fix bouton Tester
+
+**Ajoute :**
+- Connecteur `app/services/sources/google_trends_rss.py` : recupere les
+  tendances Google Trends quotidiennes via le flux RSS public
+  (`https://trends.google.com/trending/rss?geo=FR`). Gratuit, zero API,
+  zero quota, signal precoce sur les tendances montantes.
+- Parsing XML stdlib (`xml.etree.ElementTree`) avec namespace custom `ht:`
+  et mapping RFC 822 -> ISO 8601 UTC pour les dates.
+- Filtrage en 3 etapes : seuil volume minimum (500+), blacklist patterns
+  "bruit actu chaude" (sport/TV/celebrites/destinations), deduplication
+  sous-chaine (`alexander zverev` absorbe `zverev`).
+- Mapping `approx_traffic` discret -> `score_partiel` 0-100 (10000+=90,
+  5000+=80, 2000+=70, 1000+=60, 500+=45).
+- Construction d'URLs cliquables `/trends/explore?q={terme}&geo=FR` (le
+  `<link>` du flux RSS pointe vers le flux lui-meme, inutile pour l'UI).
+- Seed : nouvelle source "Google Trends RSS — FR" active par defaut.
+
+**Modifie :**
+- Seed : source "Google Trends — ce qui monte en France" (SerpAPI
+  trending) passe a `actif=False` par defaut. Remplacee par la source
+  RSS gratuite ci-dessus. Reactivable via l'UI admin si les
+  `articles_associes` SerpAPI sont necessaires.
+
+**Corrige :**
+- **Bug pre-existant** : le bouton "Tester" dans `/parametres/` appelait
+  `fetch_source(source.type, ...)` directement, sans passer par le
+  helper `_resoudre_source_type()` qui lit `config['fetcher']`. Cassait
+  toutes les sources `type=api` (Hacker News, et maintenant Google
+  Trends RSS). Fix : utilisation du helper partage avec le scanner.
+
+---
+
 ## [0.5.2] — 2026-04-11
 
 ### Affiliate Finder — detection de programmes d'affiliation Claude-powered

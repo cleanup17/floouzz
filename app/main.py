@@ -84,7 +84,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Floouzz",
     description="Recherche et veille de niches de marche basee sur des signaux multi-sources.",
-    version="0.5.2",
+    version="0.5.3",
     lifespan=lifespan,
 )
 

@@ -2,6 +2,48 @@
 
 > Tickets de dette technique : voir [dette-technique.md](dette-technique.md)
 
+## [0.5.0] — 2026-04-11
+
+### SERP Gap Detector — analyse concurrentielle SEO Claude-powered
+
+**Ajoute :**
+- Service `app/services/serp_gap.py` : pour un mot-cle, recupere le top 10
+  Google.fr via SerpAPI (`num=20` tronque a 10) puis envoie les resultats a
+  Claude Sonnet 4.5 avec un prompt expert SEO. Retourne un dict structure :
+  `score_difficulte` 0-10, `verdict` FACILE/MOYEN/DIFFICILE, `verdict_raison`,
+  `opportunites` (2-5 pistes actionnables), `faiblesses_detectees` (0-5),
+  `top_10` (snapshot structure).
+- Cache 7 jours dans `cache_ia` avec `source='serp_gap'` (preserve le quota
+  SerpAPI et evite les appels Claude doublons).
+- Detection heuristique du type de page (landing/blog/shop/forum/annuaire/
+  wikipedia/pollution) comme contexte injecte dans le prompt Claude.
+- Route `POST /analyser` : appel parallele `asyncio.gather(pipeline_ia,
+  serp_gap)` pour reduire la latence totale.
+- Nouveau champ `analyses.serp_gap JSONB` (migration `phase7.sql`).
+- Bloc "Concurrence SEO" dans `partials/fiche.html` : badge verdict colore
+  (FACILE=vert, MOYEN=orange, DIFFICILE=rouge), raison, opportunites avec
+  `+`, faiblesses avec `-`, tableau top 10 repliable via `<details>`.
+- Section "Concurrence SEO" dans l'export Markdown avec tableau du top 10
+  et echappement des pipes dans les titres.
+- Nouvelle route `GET /analyse/{id}` : affiche le detail d'une analyse
+  passee sans en relancer une nouvelle (reuse de `partials/fiche.html`).
+- Lignes cliquables dans `historique.html` : clic sur une ligne -> navigation
+  vers `/analyse/{id}`, lien `.md` preserve via `event.stopPropagation()`.
+- Script dry-run `scripts/test_serp_gap.py` pour iterer sur le prompt sans
+  toucher au module ni a la BDD.
+- Fixture `mock_serp_gap` dans `tests/conftest.py` : evite les appels reels
+  SerpAPI/Claude pendant les tests du router niches (fix bug critique
+  decouvert pendant l'integration).
+
+**Valide :** 4 tests du prompt sur vrais mots-cles (coquillage allaitement,
+veilleuse coranique, lave vitres magnetique, assurance auto pas cher) — les
+3 premiers retournent FACILE 2-3/10, le dernier DIFFICILE 9/10. Prompt
+discriminant et actionnable.
+
+**Tests :** 108 PASS.
+
+---
+
 ## [0.4.1] — 2026-04-11
 
 ### Source Sitemap Intelligence + edition de config dans l'UI admin

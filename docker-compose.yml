@@ -18,7 +18,8 @@ services:
       - .env
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./migrations/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./migrations/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./migrations/phase2.sql:/docker-entrypoint-initdb.d/02-phase2.sql
     ports:
       - "5433:5432"
     healthcheck:

@@ -3,93 +3,80 @@
 {% block title %}{{ niche.mot_cle }} — Historique{% endblock %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto">
+<div class="max-w-4xl mx-auto">
 
-    <!-- Navigation retour -->
-    <a href="/" class="text-sm text-gray-500 hover:text-floouzz-500 transition mb-6 inline-block">
-        &larr; Retour a l'accueil
+    {# ---------------- Navigation retour ---------------- #}
+    <a href="/analyser" class="text-sm text-gray-500 hover:text-floouzz-500 transition mb-6 inline-block">
+        &larr; Retour
     </a>
 
-    <!-- En-tête niche -->
+    {# ---------------- Header niche ---------------- #}
     <div class="flex items-center justify-between mb-8">
         <div>
             <h1 class="text-3xl font-bold text-white uppercase">{{ niche.mot_cle }}</h1>
-            <p class="text-gray-500 mt-1">{{ analyses|length }} analyse{{ 's' if analyses|length > 1 else '' }}</p>
+            <p class="text-gray-500 mt-1">
+                {{ analyses|length }} analyse{{ 's' if analyses|length > 1 else '' }}
+            </p>
         </div>
-        <!-- Bouton relancer une analyse -->
-        <form hx-post="/analyser" hx-target="#nouvelle-analyse" hx-swap="innerHTML" hx-indicator="#loader-hist">
+        <form hx-post="/analyser" hx-target="#nouvelle-analyse" hx-swap="innerHTML">
             <input type="hidden" name="mot_cle" value="{{ niche.mot_cle }}">
-            <button type="submit" class="px-4 py-2 bg-floouzz-600 hover:bg-floouzz-700 text-white text-sm font-medium rounded-lg transition flex items-center gap-2">
-                <span class="btn-text">Nouvelle analyse</span>
-                <span id="loader-hist" class="loader hidden items-center gap-2">
-                    <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                    </svg>
-                    Analyse...
-                </span>
+            <button type="submit"
+                    class="px-4 py-2 bg-floouzz-600 hover:bg-floouzz-700 text-white text-sm font-medium rounded-lg transition">
+                Nouvelle analyse
             </button>
         </form>
     </div>
 
-    <!-- Zone nouvelle analyse -->
     <div id="nouvelle-analyse" class="mb-8"></div>
 
-    <!-- Historique des analyses -->
-    <div class="space-y-4">
-        {% for analyse in analyses %}
-        <div class="bg-gray-900 border border-gray-700 rounded-lg p-5">
-            <div class="flex items-center justify-between mb-3">
-                <span class="text-sm text-gray-500">{{ analyse.created_at.strftime('%d/%m/%Y a %H:%M') }}</span>
-                <div class="flex items-center gap-3">
-                    <span class="text-2xl font-bold {% if analyse.score_global > 70 %}text-green-400{% elif analyse.score_global >= 50 %}text-yellow-400{% else %}text-red-400{% endif %}">
-                        {{ analyse.score_global }}<span class="text-sm text-gray-500">/100</span>
-                    </span>
-                    <span class="px-2 py-1 rounded-full text-xs font-semibold badge-{{ analyse.verdict }}">
-                        {% if analyse.verdict == 'explorer' %}A explorer
-                        {% elif analyse.verdict == 'watchlist' %}Watchlist
-                        {% else %}Abandonner{% endif %}
-                    </span>
-                </div>
-            </div>
-
-            <!-- Mini barres de score -->
-            <div class="grid grid-cols-4 gap-3 mb-3">
-                <div>
-                    <span class="text-xs text-gray-500">Demande</span>
-                    <div class="h-1.5 bg-gray-800 rounded-full mt-1">
-                        <div class="h-full rounded-full {% if analyse.score_demande > 60 %}bg-green-500{% elif analyse.score_demande >= 40 %}bg-yellow-500{% else %}bg-red-500{% endif %}"
-                             style="width: {{ analyse.score_demande }}%"></div>
-                    </div>
-                    <span class="text-xs {% if analyse.score_demande > 60 %}text-green-400{% elif analyse.score_demande >= 40 %}text-yellow-400{% else %}text-red-400{% endif %}">{{ analyse.score_demande }}</span>
-                </div>
-                <div>
-                    <span class="text-xs text-gray-500">Douleur</span>
-                    <div class="h-1.5 bg-gray-800 rounded-full mt-1">
-                        <div class="h-full rounded-full bg-gray-600" style="width: {{ analyse.score_douleur }}%"></div>
-                    </div>
-                    <span class="text-xs text-gray-600">{{ analyse.score_douleur }}</span>
-                </div>
-                <div>
-                    <span class="text-xs text-gray-500">Concurrence</span>
-                    <div class="h-1.5 bg-gray-800 rounded-full mt-1">
-                        <div class="h-full rounded-full bg-gray-600" style="width: {{ analyse.score_concurrence }}%"></div>
-                    </div>
-                    <span class="text-xs text-gray-600">{{ analyse.score_concurrence }}</span>
-                </div>
-                <div>
-                    <span class="text-xs text-gray-500">Monetisation</span>
-                    <div class="h-1.5 bg-gray-800 rounded-full mt-1">
-                        <div class="h-full rounded-full bg-gray-600" style="width: {{ analyse.score_monetisation }}%"></div>
-                    </div>
-                    <span class="text-xs text-gray-600">{{ analyse.score_monetisation }}</span>
-                </div>
-            </div>
-
-            <p class="text-sm text-gray-400">{{ analyse.opportunite }}</p>
-        </div>
-        {% endfor %}
+    {# ---------------- Tableau historique ---------------- #}
+    {% if analyses %}
+    {% set verdict_couleurs = {
+        'GO':    'bg-green-500/20  text-green-300  border-green-500/40',
+        'WATCH': 'bg-orange-500/20 text-orange-300 border-orange-500/40',
+        'SKIP':  'bg-red-500/20    text-red-300    border-red-500/40',
+    } %}
+    <div class="overflow-hidden bg-gray-900 border border-gray-700 rounded-lg">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-800/60 text-xs uppercase text-gray-500 tracking-wide">
+                <tr>
+                    <th class="text-left px-4 py-3 font-semibold">Mot-cle</th>
+                    <th class="text-left px-4 py-3 font-semibold">Score</th>
+                    <th class="text-left px-4 py-3 font-semibold">Verdict</th>
+                    <th class="text-left px-4 py-3 font-semibold">Date</th>
+                    <th class="text-right px-4 py-3 font-semibold">Export</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-800">
+                {% for analyse in analyses %}
+                {% set vclass = verdict_couleurs.get(analyse.verdict, 'bg-gray-500/20 text-gray-300 border-gray-500/40') %}
+                <tr class="hover:bg-gray-800/40 transition">
+                    <td class="px-4 py-3 text-white font-medium">{{ niche.mot_cle }}</td>
+                    <td class="px-4 py-3 text-white font-semibold">
+                        {{ analyse.score_global }}<span class="text-gray-500">/10</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold border {{ vclass }}">
+                            {{ analyse.verdict }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-gray-400">
+                        {{ analyse.created_at.strftime('%d/%m/%Y %H:%M') }}
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                        <a href="/exports/niche/{{ niche.id }}/markdown"
+                           class="text-floouzz-500 hover:text-floouzz-400 transition">
+                            .md
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
+    {% else %}
+    <p class="text-gray-500 text-center py-8">Aucune analyse pour cette niche.</p>
+    {% endif %}
 
 </div>
 {% endblock %}

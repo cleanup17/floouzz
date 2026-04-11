@@ -15,7 +15,7 @@
 - **Frontend** : HTMX + Tailwind CSS (CDN) + Jinja2
 - **Sources de données** : SerpAPI (Google), Apify (Reddit, PH, HN), webhooks (n8n)
 - **IA** : Claude API (résumés, filtrage pertinence, tagging)
-- **Traduction** : DeepL API Free (FR→EN)
+- **Traduction** : Claude API (FR→EN, intégré dans l'enrichissement)
 
 ### Infrastructure
 - **Dev** : Windows, Laragon, Docker Desktop (port 8001)
@@ -29,7 +29,7 @@ app/services/
 ├── scanner.py              ← orchestrateur du scan quotidien
 ├── enrichissement.py       ← Claude API : résumé, pertinence, tags
 ├── scoring.py              ← calcul score global + verdict
-├── traduction.py           ← DeepL FR→EN
+├── traduction.py           ← Claude API FR→EN
 └── sources/
     ├── google_trends.py    ← SerpAPI Google Trends
     ├── google_jobs.py      ← SerpAPI Google Jobs
@@ -56,7 +56,7 @@ app/routers/
 ### Sécurité (NON NÉGOCIABLE)
 - Ne jamais logger clés API, tokens, ou données personnelles
 - `.env` : jamais lu, modifié ou commité par Claude
-- `SERPAPI_KEY`, `APIFY_TOKEN`, `DEEPL_API_KEY`, `ANTHROPIC_API_KEY` → variables d'environnement uniquement
+- `SERPAPI_KEY`, `APIFY_TOKEN`, `ANTHROPIC_API_KEY` → variables d'environnement uniquement
 - Clés API JAMAIS stockées en base de données
 - Validation Pydantic OBLIGATOIRE sur tous les endpoints FastAPI
 - ALWAYS valider toutes les entrées utilisateur avec Pydantic

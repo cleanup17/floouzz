@@ -165,8 +165,9 @@ def _construire_prompt(
     if donnees:
         donnees_str = json.dumps(donnees, ensure_ascii=False, default=str)[:800]
 
-    return f"""Tu es un analyste de marche qui aide une consultante numerique solo a reperer
-des niches pour micro-SaaS ou offres de service IA.
+    return f"""Tu es un analyste de marche qui aide une entrepreneure independante a reperer
+des niches exploitables, quel que soit le modele economique (e-commerce,
+dropshipping, affiliation, contenu/blog, service, SaaS).
 
 THEMATIQUES DE REFERENCE : {themes_str}
 
@@ -174,6 +175,22 @@ SIGNAL A ANALYSER :
 Titre : {titre}
 Contenu : {contenu[:2000]}
 Donnees brutes : {donnees_str}
+
+DIMENSION MONETISATION — precisions importantes :
+La monetisation doit evaluer le **potentiel de revenus en ligne** sur cette niche,
+pas uniquement la faisabilite en SaaS. Les modeles a considerer :
+- e-commerce (vente de produits physiques)
+- dropshipping (vente sans stock)
+- affiliation (commissions sur ventes tierces)
+- contenu / blog (ads, sponsors, newsletters payantes)
+- service (prestation, formation, accompagnement)
+- SaaS (abonnement a un outil en ligne)
+
+Evalue le modele le plus **naturel** pour cette niche et score en consequence.
+Une niche de produit physique peu adaptee au SaaS peut tres bien scorer 8/10
+en monetisation si l'e-commerce/dropshipping y est evident. A l'inverse, une
+niche abstraite peut scorer faible en monetisation si aucun modele n'est
+naturel meme si la demande est forte.
 
 Ta mission : produire UN SEUL objet JSON, SANS texte autour, avec cette structure exacte :
 
@@ -185,7 +202,7 @@ Ta mission : produire UN SEUL objet JSON, SANS texte autour, avec cette structur
     "demande": {{"valeur": <0-10>, "justification": "<1 phrase>"}},
     "douleur": {{"valeur": <0-10>, "justification": "<1 phrase>"}},
     "concurrence": {{"valeur": <0-10>, "justification": "<1 phrase, 10 = peu de concurrents>"}},
-    "monetisation": {{"valeur": <0-10>, "justification": "<1 phrase>"}}
+    "monetisation": {{"valeur": <0-10>, "justification": "<1 phrase qui nomme le modele le plus naturel (e-commerce/dropshipping/affiliation/contenu/service/SaaS) et justifie le score>"}}
   }},
   "score_global": <0-10, moyenne ponderee : demande 40%, douleur 20%, concurrence 20%, monetisation 20%>,
   "verdict": "<GO si score_global >= 7, WATCH si 4-6, SKIP si < 4>",

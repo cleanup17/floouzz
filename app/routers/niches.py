@@ -232,3 +232,54 @@ async def page_niche(
         "niche": niche,
         "analyses": analyses,
     })
+
+
+@router.get("/analyse/{analyse_id}", response_class=HTMLResponse)
+async def page_analyse(
+    request: Request,
+    analyse_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Affiche le detail d'une analyse passee (pipeline_ia + serp_gap + signaux).
+    Permet de consulter une ancienne analyse sans en relancer une nouvelle.
+    """
+    stmt = (
+        select(Analyse)
+        .where(Analyse.id == analyse_id)
+        .options(selectinload(Analyse.signaux))
+    )
+    result = await db.execute(stmt)
+    analyse = result.scalar_one_or_none()
+
+    if analyse is None:
+        return templates.TemplateResponse(
+            request,
+            "partials/erreur.html",
+            {"message": "Analyse introuvable."},
+            status_code=404,
+        )
+
+    # Charger la niche parent pour le rendu
+    stmt_niche = select(Niche).where(Niche.id == analyse.niche_id)
+    result_niche = await db.execute(stmt_niche)
+    niche = result_niche.scalar_one_or_none()
+
+    if niche is None:
+        return templates.TemplateResponse(
+            request,
+            "partials/erreur.html",
+            {"message": "Niche parent introuvable."},
+            status_code=404,
+        )
+
+    # Compter les analyses de la niche pour le footer de la fiche
+    stmt_count = select(func.count(Analyse.id)).where(Analyse.niche_id == niche.id)
+    result_count = await db.execute(stmt_count)
+    nb_analyses = result_count.scalar() or 0
+
+    return templates.TemplateResponse(request, "partials/fiche.html", {
+        "niche": niche,
+        "analyse": analyse,
+        "nb_analyses": nb_analyses,
+    })

@@ -50,7 +50,8 @@
             <tbody class="divide-y divide-gray-800">
                 {% for analyse in analyses %}
                 {% set vclass = verdict_couleurs.get(analyse.verdict, 'bg-gray-500/20 text-gray-300 border-gray-500/40') %}
-                <tr class="hover:bg-gray-800/40 transition">
+                <tr class="hover:bg-gray-800/60 transition cursor-pointer"
+                    onclick="window.location.href='/analyse/{{ analyse.id }}'">
                     <td class="px-4 py-3 text-white font-medium">{{ niche.mot_cle }}</td>
                     <td class="px-4 py-3 text-white font-semibold">
                         {{ analyse.score_global }}<span class="text-gray-500">/10</span>
@@ -64,7 +65,10 @@
                         {{ analyse.created_at.strftime('%d/%m/%Y %H:%M') }}
                     </td>
                     <td class="px-4 py-3 text-right">
+                        {# stopPropagation : le lien .md ne doit pas declencher
+                           la navigation vers /analyse/{id} du <tr> parent #}
                         <a href="/exports/niche/{{ niche.id }}/markdown"
+                           onclick="event.stopPropagation()"
                            class="text-floouzz-500 hover:text-floouzz-400 transition">
                             .md
                         </a>

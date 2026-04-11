@@ -2,6 +2,52 @@
 
 > Tickets de dette technique : voir [dette-technique.md](dette-technique.md)
 
+## [0.5.5] — 2026-04-12
+
+### Detection de saisonnalite — analyse Google Trends 12 mois
+
+**Ajoute :**
+- Service `app/services/saisonnalite.py` : analyse la courbe Google Trends
+  hebdomadaire sur 12 mois pour un mot-cle (~53 points), calcule les stats
+  descriptives (moyenne, ecart-type, ratio pic/moyenne, coefficient
+  variation, concentration top 8 semaines) et applique des regles
+  deterministes pour classifier en 5 verdicts : STABLE / CYCLIQUE /
+  SAISONNIER / PIC_UNIQUE / AUCUNE_DONNEE.
+- **Pas d'appel Claude** : la saisonnalite est un probleme mathematique
+  pur, plus rapide et plus previsible avec des regles. Cout par analyse :
+  ~0.002\$ (1 SerpAPI seul, le plus economique des 4 services Floouzz).
+- Detection de la phase actuelle (creux / hausse / pic / descente) via
+  analyse des 4 dernieres semaines vs les 8 precedentes.
+- Extraction du mois du pic principal depuis les dates SerpAPI FR.
+- Generation de 1-3 recommandations actionnables selon le verdict, la
+  phase et la distance au pic ("lance maintenant", "attends X mois",
+  "prepare le prochain cycle").
+- Cache 30 jours dans `cache_ia` avec `source='saisonnalite'` (les
+  courbes Trends bougent tres peu sur 12 mois).
+- Script dry-run `scripts/test_saisonnalite.py` valide sur 4 mots-cles
+  reels (chocolat paques = PIC_UNIQUE 10/10, matelas bio = CYCLIQUE 4/10,
+  coquillage allaitement = STABLE 1/10, assurance auto = CYCLIQUE 4/10).
+- Route `POST /analyser` : `asyncio.gather` etendu a **4 services
+  paralleles** (pipeline_ia + serp_gap + affiliate_finder + saisonnalite).
+- Nouveau champ `analyses.saisonnalite JSONB` (migration `phase9.sql`).
+- Bloc "Saisonnalite" dans `partials/fiche.html` : badge verdict colore
+  (PIC_UNIQUE=rouge, SAISONNIER=orange, CYCLIQUE=bleu, STABLE=gris),
+  grille 2 colonnes (pic principal / phase actuelle avec icone
+  directionnelle), recommandations, **sparkline HTML+CSS pur** sur 53
+  semaines avec tooltip natif au survol, stats techniques repliables.
+- Section "Saisonnalite" dans l'export Markdown avec tableau des stats
+  techniques et recommandations.
+- Fixture `mock_saisonnalite` dans `tests/conftest.py` pour eviter les
+  appels reels Google Trends pendant les tests.
+
+**Modifie :**
+- Commentaire `asyncio.gather` dans `routers/niches.py` mis a jour avec
+  les 4 caches et leurs TTL respectifs (24h / 7j / 30j / 30j).
+
+**Tests :** 108 PASS, aucune regression.
+
+---
+
 ## [0.5.4] — 2026-04-11
 
 ### 51 thematiques de reference (seed idempotent)

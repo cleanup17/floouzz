@@ -19,13 +19,30 @@ DEFAULT_SOURCES = [
         "actif": True,
         "cron_expr": "0 6 * * *",
     },
+    # --- Google Trends RSS (gratuit, remplace SerpAPI trending par defaut) ---
+    {
+        "nom": "Google Trends RSS — FR",
+        "type": "api",
+        "config": {
+            "fetcher": "google_trends_rss",
+            "geo": "FR",
+            "max_items": 10,
+            "filtre_bruit": True,
+        },
+        "cle_api_ref": None,
+        "actif": True,
+        "cron_expr": "0 6 * * *",
+    },
     # --- SerpAPI (1 appel chacune) ---
+    # Source desactivee par defaut : remplacee par Google Trends RSS ci-dessus
+    # (gratuit, zero quota). Reactivable si tu veux les 'articles_associes' en
+    # bonus via SerpAPI. Decision v0.5.3 (Dedup-3).
     {
         "nom": "Google Trends — ce qui monte en France",
         "type": "serpapi",
         "config": {"engine": "google_trends", "gl": "FR", "hl": "fr"},
         "cle_api_ref": "SERPAPI_KEY",
-        "actif": True,
+        "actif": False,
         "cron_expr": "0 6 * * *",
     },
     {

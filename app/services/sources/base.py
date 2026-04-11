@@ -70,6 +70,7 @@ def _ensure_registered() -> None:
     _registered = True
 
     from app.services.sources.google_trends import fetch_serpapi_trends
+    from app.services.sources.google_trends_rss import fetch_google_trends_rss
     from app.services.sources.google_jobs import fetch_google_jobs
     from app.services.sources.google_search import fetch_google_search
     from app.services.sources.google_news import fetch_google_news
@@ -80,6 +81,7 @@ def _ensure_registered() -> None:
     from app.services.sources.sitemap import fetch_sitemap
 
     register_fetcher("serpapi", fetch_serpapi_trends)
+    register_fetcher("google_trends_rss", fetch_google_trends_rss)
     register_fetcher("serpapi_jobs", fetch_google_jobs)
     register_fetcher("serpapi_search", fetch_google_search)
     register_fetcher("serpapi_news", fetch_google_news)

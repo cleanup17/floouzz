@@ -37,7 +37,7 @@ class SignalRead(BaseModel):
 
 class SourceCreate(BaseModel):
     nom: str = Field(..., min_length=2, max_length=100)
-    type: str = Field(..., pattern=r"^(serpapi|apify_actor|apify_url|api|webhook)$")
+    type: str = Field(..., pattern=r"^(serpapi|apify_actor|apify_url|api|webhook|sitemap)$")
     config: dict = {}
     cle_api_ref: str | None = None
     actif: bool = True
@@ -46,7 +46,7 @@ class SourceCreate(BaseModel):
 
 class SourceUpdate(BaseModel):
     nom: str | None = Field(None, min_length=2, max_length=100)
-    type: str | None = Field(None, pattern=r"^(serpapi|apify_actor|apify_url|api|webhook)$")
+    type: str | None = Field(None, pattern=r"^(serpapi|apify_actor|apify_url|api|webhook|sitemap)$")
     config: dict | None = None
     cle_api_ref: str | None = None
     actif: bool | None = None

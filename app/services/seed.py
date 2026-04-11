@@ -84,7 +84,56 @@ DEFAULT_SOURCES = [
         "actif": True,
         "cron_expr": "0 6 * * *",
     },
+    # --- Sitemap Intelligence (v0.4+) ---
+    # Crawl les sitemaps XML de sites concurrents pour detecter les nouvelles
+    # pages produits. Signal fort qu'une niche est exploitee activement.
+    # Desactive par defaut : a configurer + activer manuellement dans l'admin.
+    # Les URLs "REMPLACER-*" sont des placeholders visibles dans l'UI admin :
+    # l'utilisatrice doit les editer avant d'activer la source.
+    {
+        "nom": "Sitemap Intelligence",
+        "type": "sitemap",
+        "config": {
+            "sitemaps": [
+                "https://REMPLACER-PAR-CONCURRENT-1.com/sitemap.xml",
+                "https://REMPLACER-PAR-CONCURRENT-2.fr/sitemap_index.xml.gz",
+            ],
+            "max_urls_par_sitemap": 50,
+            "max_age_days": 30,
+            "max_resultats": 30,
+            "max_index_depth": 2,
+        },
+        "cle_api_ref": None,
+        "actif": False,
+        "cron_expr": "0 6 * * *",
+    },
 ]
+
+
+async def seed_sources_manquantes(db: AsyncSession) -> int:
+    """
+    Insere les sources de DEFAULT_SOURCES qui ne sont pas encore en base,
+    identifiees par leur nom. Idempotent : peut etre appele a chaque
+    demarrage sans creer de doublon.
+
+    Utile quand on ajoute une nouvelle source par defaut apres le seed
+    initial (ex: Sitemap Intelligence en v0.4+).
+    """
+    stmt = select(Source.nom)
+    result = await db.execute(stmt)
+    noms_existants = {row[0] for row in result.all()}
+
+    count = 0
+    for s in DEFAULT_SOURCES:
+        if s["nom"] in noms_existants:
+            continue
+        db.add(Source(**s))
+        count += 1
+
+    if count:
+        await db.commit()
+        logger.info(f"Seed : {count} nouvelle(s) source(s) ajoutee(s)")
+    return count
 
 
 async def seed_sources_par_defaut(db: AsyncSession) -> int:

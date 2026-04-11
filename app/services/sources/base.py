@@ -77,6 +77,7 @@ def _ensure_registered() -> None:
     from app.services.sources.producthunt import fetch_producthunt
     from app.services.sources.hackernews import fetch_hackernews
     from app.services.sources.apify_url import fetch_apify_url
+    from app.services.sources.sitemap import fetch_sitemap
 
     register_fetcher("serpapi", fetch_serpapi_trends)
     register_fetcher("serpapi_jobs", fetch_google_jobs)
@@ -86,3 +87,4 @@ def _ensure_registered() -> None:
     register_fetcher("producthunt", fetch_producthunt)
     register_fetcher("hackernews", fetch_hackernews)
     register_fetcher("apify_url", fetch_apify_url)
+    register_fetcher("sitemap", fetch_sitemap)

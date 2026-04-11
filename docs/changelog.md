@@ -2,6 +2,45 @@
 
 > Tickets de dette technique : voir [dette-technique.md](dette-technique.md)
 
+## [0.4.1] — 2026-04-11
+
+### Source Sitemap Intelligence + edition de config dans l'UI admin
+
+**Ajoute :**
+- Connecteur `app/services/sources/sitemap.py` : crawl les sitemaps XML
+  de sites concurrents pour detecter les pages publiees recemment.
+  Supporte sitemap classique + sitemap index recursif + gzip. Score
+  fraicheur base sur `<lastmod>` (aujourd'hui=90, <3j=80, <30j=40).
+  Config : liste de sitemaps, `max_urls_par_sitemap`, `max_age_days`,
+  `max_resultats`, `max_index_depth`.
+- Source "Sitemap Intelligence" inseree automatiquement via la nouvelle
+  fonction idempotente `seed_sources_manquantes()` appelee dans le
+  `lifespan`. Active `False` par defaut, URLs placeholder
+  `REMPLACER-PAR-CONCURRENT-*` a editer avant activation.
+- Migration `phase6.sql` : ajoute `'sitemap'` a la contrainte CHECK
+  `sources_type_check`.
+- Route `PUT /api/sources/{id}` : edition de la config JSONB d'une
+  source existante. Parsing JSON robuste (rejette si invalide plutot
+  que d'ecraser avec `{}`).
+- Modale generique create/edit dans `/parametres/` avec pre-remplissage
+  JSON formate, option `sitemap` dans le select, champ cron editable.
+- Script dry-run `scripts/test_sitemap_scan.py` pour tester le
+  connecteur sitemap en isolation (aucun appel Claude, aucun INSERT).
+
+**Corrige :**
+- **Bug critique soumission form modale** : HTMX mettait en cache
+  `hx-post` au chargement initial et ignorait les `setAttribute('hx-put')`
+  dynamiques. Le form d'edition etait silencieusement casse. Fix :
+  retrait des attributs `hx-*`, interception du submit en JS avec
+  `fetch()` manuel selon le mode create/edit.
+- **Bug rechargement UI apres action source** : les routes retournaient
+  un `<script>window.location.href=...</script>` dans le body, jamais
+  injecte a cause de `hx-swap='none'`. Fix : helper `_htmx_redirect()`
+  qui retourne `204 No Content + HX-Redirect` header, intercepte
+  nativement par HTMX.
+
+---
+
 ## [0.4.0] — 2026-04-11
 
 ### Scheduler automatique + dette Starlette

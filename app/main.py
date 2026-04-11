@@ -12,7 +12,7 @@ from app.config import settings
 from app.database import async_session
 from app.routers import decouvertes, exports, niches, parametres, sources, webhooks
 from app.services.scanner import run_scan_complet
-from app.services.seed import seed_sources_par_defaut
+from app.services.seed import seed_sources_manquantes, seed_sources_par_defaut
 
 # Configuration minimale du logging pour que les logger.info() applicatifs
 # remontent dans la sortie uvicorn. Sans cela, le root logger filtre les INFO.
@@ -58,9 +58,14 @@ def _creer_scheduler() -> AsyncIOScheduler | None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Actions au demarrage et a l'arret de l'application."""
-    # Seed des sources par defaut
+    # Seed des sources par defaut (premier demarrage uniquement)
     async with async_session() as db:
         await seed_sources_par_defaut(db)
+
+    # Seed des sources manquantes ajoutees apres le premier demarrage
+    # (ex: Sitemap Intelligence en v0.4+). Idempotent, safe a chaque boot.
+    async with async_session() as db:
+        await seed_sources_manquantes(db)
 
     # Demarrage du scheduler (si configure)
     scheduler = _creer_scheduler()
@@ -79,7 +84,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Floouzz",
     description="Recherche et veille de niches de marche basee sur des signaux multi-sources.",
-    version="0.4.0",
+    version="0.4.1",
     lifespan=lifespan,
 )
 

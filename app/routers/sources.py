@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +17,16 @@ from app.services.sources.base import fetch_source
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
 templates = Jinja2Templates(directory="app/templates")
+
+
+def _htmx_redirect(url: str = "/parametres/") -> Response:
+    """
+    Retourne une reponse vide avec le header HX-Redirect.
+    HTMX intercepte ce header et force le navigateur a naviguer vers url,
+    ce qui fonctionne meme avec hx-swap='none' (contrairement a un <script>
+    inline qui ne serait jamais injecte dans le DOM).
+    """
+    return Response(status_code=204, headers={"HX-Redirect": url})
 
 
 @router.post("/", response_class=HTMLResponse)
@@ -42,9 +52,52 @@ async def creer_source(request: Request, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
     # Recharger la page parametres
-    return HTMLResponse(
-        '<script>window.location.href="/parametres/";</script>'
-    )
+    return _htmx_redirect()
+
+
+@router.put("/{source_id}", response_class=HTMLResponse)
+async def modifier_source(
+    request: Request,
+    source_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Modifie une source existante (nom, type, config JSONB, cle API, cron).
+    Le champ actif n'est PAS touche ici : il a sa propre route /toggle.
+    Si le JSON de config est invalide, la modification est rejetee silencieusement
+    (on conserve l'ancienne config plutot que d'ecraser avec {}).
+    """
+    stmt = select(Source).where(Source.id == source_id)
+    result = await db.execute(stmt)
+    source = result.scalar_one_or_none()
+
+    if source is None:
+        return _htmx_redirect()
+
+    form = await request.form()
+
+    # Parsing de la config JSON : on rejette si invalide (pas d'ecrasement)
+    config_str = form.get("config", "").strip()
+    nouvelle_config = source.config
+    if config_str:
+        try:
+            nouvelle_config = json.loads(config_str)
+            if not isinstance(nouvelle_config, dict):
+                nouvelle_config = source.config
+        except json.JSONDecodeError:
+            nouvelle_config = source.config
+
+    # Application des champs modifiables
+    source.nom = form.get("nom", source.nom) or source.nom
+    source.type = form.get("type", source.type) or source.type
+    source.config = nouvelle_config
+    source.cle_api_ref = form.get("cle_api_ref") or None
+    source.cron_expr = form.get("cron_expr", source.cron_expr) or source.cron_expr
+    source.updated_at = datetime.now(timezone.utc)
+
+    await db.commit()
+
+    return _htmx_redirect()
 
 
 @router.post("/{source_id}/toggle", response_class=HTMLResponse)
@@ -63,9 +116,7 @@ async def toggle_source(
         source.updated_at = datetime.now(timezone.utc)
         await db.commit()
 
-    return HTMLResponse(
-        '<script>window.location.href="/parametres/";</script>'
-    )
+    return _htmx_redirect()
 
 
 @router.delete("/{source_id}", response_class=HTMLResponse)
@@ -83,9 +134,7 @@ async def supprimer_source(
         await db.delete(source)
         await db.commit()
 
-    return HTMLResponse(
-        '<script>window.location.href="/parametres/";</script>'
-    )
+    return _htmx_redirect()
 
 
 @router.post("/{source_id}/tester", response_class=HTMLResponse)

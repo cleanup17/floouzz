@@ -154,7 +154,7 @@ class Source(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "type IN ('serpapi', 'apify_actor', 'apify_url', 'api', 'webhook')"
+            "type IN ('serpapi', 'apify_actor', 'apify_url', 'api', 'webhook', 'sitemap')"
         ),
         Index("idx_sources_actif", "actif"),
     )

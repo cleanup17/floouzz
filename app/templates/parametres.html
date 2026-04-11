@@ -7,7 +7,7 @@
 
     <h1 class="text-2xl font-bold text-white">Parametres</h1>
 
-    <!-- Cles API -->
+    {# ---------------- Cles API ---------------- #}
     <section>
         <h2 class="text-lg font-semibold text-gray-300 mb-4">Cles API (.env)</h2>
         <div class="space-y-2">
@@ -26,11 +26,11 @@
         <p class="text-xs text-gray-600 mt-2">Les cles se configurent dans le fichier .env — jamais en base de donnees.</p>
     </section>
 
-    <!-- Sources -->
+    {# ---------------- Sources ---------------- #}
     <section>
         <div class="flex items-center justify-between mb-4">
             <h2 class="text-lg font-semibold text-gray-300">Sources</h2>
-            <button onclick="document.getElementById('modale-source').classList.remove('hidden')"
+            <button onclick="ouvrirModaleCreate()"
                     class="px-3 py-1 bg-floouzz-600 hover:bg-floouzz-700 text-white text-sm rounded-lg transition">
                 + Ajouter
             </button>
@@ -47,6 +47,18 @@
                 </div>
                 <div class="flex items-center gap-2">
                     <span class="text-xs text-gray-600">{{ source.cle_api_ref or 'gratuit' }}</span>
+                    <button
+                        onclick='ouvrirModaleEdit({{ {
+                            "id": source.id|string,
+                            "nom": source.nom,
+                            "type": source.type,
+                            "config": source.config,
+                            "cle_api_ref": source.cle_api_ref or "",
+                            "cron_expr": source.cron_expr,
+                        } | tojson }})'
+                        class="px-2 py-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition">
+                        Editer
+                    </button>
                     <button
                         hx-post="/api/sources/{{ source.id }}/tester"
                         hx-target="#test-result-{{ source.id }}"
@@ -74,51 +86,71 @@
         </div>
     </section>
 
-    <!-- Modale ajout source -->
+    {# ---------------- Modale generique create/edit ---------------- #}
+    {# Le submit du form est intercepte en JS (voir script en bas) pour envoyer
+       soit un POST /api/sources/ (creation) soit un PUT /api/sources/{id}
+       (edition). On n'utilise PAS hx-post/hx-put ici : HTMX met en cache la
+       methode au chargement initial et ne la met pas a jour dynamiquement. #}
     <div id="modale-source" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div class="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-lg">
-            <h3 class="text-lg font-semibold text-white mb-4">Nouvelle source</h3>
-            <form hx-post="/api/sources/" hx-swap="none" class="space-y-4">
+        <div class="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <h3 id="modale-titre" class="text-lg font-semibold text-white mb-4">Nouvelle source</h3>
+            <form id="form-source" class="space-y-4">
                 <div>
                     <label class="text-sm text-gray-400">Nom</label>
-                    <input name="nom" required class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm">
+                    <input id="field-nom" name="nom" required
+                           class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm">
                 </div>
                 <div>
                     <label class="text-sm text-gray-400">Type</label>
-                    <select name="type" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm">
+                    <select id="field-type" name="type"
+                            class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm">
                         <option value="serpapi">SerpAPI</option>
                         <option value="apify_actor">Apify Actor</option>
                         <option value="apify_url">Apify URL</option>
                         <option value="api">API directe</option>
                         <option value="webhook">Webhook</option>
+                        <option value="sitemap">Sitemap</option>
                     </select>
                 </div>
                 <div>
                     <label class="text-sm text-gray-400">Config (JSON)</label>
-                    <textarea name="config" rows="4" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm font-mono">{}</textarea>
+                    <textarea id="field-config" name="config" rows="8"
+                              class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-xs font-mono">{}</textarea>
+                    <p class="text-xs text-gray-600 mt-1">JSON valide. Laisse vide pour conserver l'actuel lors d'une edition.</p>
                 </div>
                 <div>
                     <label class="text-sm text-gray-400">Cle API (.env)</label>
-                    <select name="cle_api_ref" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm">
+                    <select id="field-cle-api" name="cle_api_ref"
+                            class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm">
                         <option value="">Aucune (gratuit)</option>
                         <option value="SERPAPI_KEY">SERPAPI_KEY</option>
                         <option value="APIFY_TOKEN">APIFY_TOKEN</option>
                     </select>
                 </div>
-                <div class="flex items-center gap-2">
-                    <input type="checkbox" name="actif" checked class="rounded">
+                <div>
+                    <label class="text-sm text-gray-400">Cron</label>
+                    <input id="field-cron" name="cron_expr" value="0 6 * * *"
+                           class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-white text-sm font-mono">
+                </div>
+                {# Checkbox 'Active' uniquement en mode create —
+                   masquee en mode edit, ou le toggle se fait via le bouton dedie #}
+                <div id="field-actif-wrapper" class="flex items-center gap-2">
+                    <input type="checkbox" id="field-actif" name="actif" checked class="rounded">
                     <label class="text-sm text-gray-400">Active</label>
                 </div>
                 <div class="flex justify-end gap-3 mt-4">
-                    <button type="button" onclick="document.getElementById('modale-source').classList.add('hidden')"
+                    <button type="button" onclick="fermerModale()"
                             class="px-4 py-2 text-sm text-gray-400 hover:text-white transition">Annuler</button>
-                    <button type="submit" class="px-4 py-2 bg-floouzz-600 hover:bg-floouzz-700 text-white text-sm rounded-lg transition">Creer</button>
+                    <button type="submit" id="modale-submit"
+                            class="px-4 py-2 bg-floouzz-600 hover:bg-floouzz-700 text-white text-sm rounded-lg transition">
+                        Creer
+                    </button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Thematiques -->
+    {# ---------------- Thematiques ---------------- #}
     <section>
         <div class="flex items-center justify-between mb-4">
             <h2 class="text-lg font-semibold text-gray-300">Thematiques</h2>
@@ -141,7 +173,7 @@
         </form>
     </section>
 
-    <!-- Stats scan -->
+    {# ---------------- Stats scan ---------------- #}
     <section>
         <h2 class="text-lg font-semibold text-gray-300 mb-4">Scan quotidien</h2>
         <div class="bg-gray-900 border border-gray-700 rounded-lg p-4">
@@ -159,4 +191,109 @@
     </section>
 
 </div>
+
+{# ---------------- Script modale generique ---------------- #}
+<script>
+(function () {
+    const modale = document.getElementById('modale-source');
+    const titre = document.getElementById('modale-titre');
+    const form = document.getElementById('form-source');
+    const submitBtn = document.getElementById('modale-submit');
+    const actifWrapper = document.getElementById('field-actif-wrapper');
+
+    const fields = {
+        nom: document.getElementById('field-nom'),
+        type: document.getElementById('field-type'),
+        config: document.getElementById('field-config'),
+        cle_api: document.getElementById('field-cle-api'),
+        cron: document.getElementById('field-cron'),
+        actif: document.getElementById('field-actif'),
+    };
+
+    // Etat courant de la modale : 'create' ou 'edit'
+    // En mode edit, on stocke aussi l'id de la source
+    let mode = 'create';
+    let currentSourceId = null;
+
+    function reinitForm() {
+        fields.nom.value = '';
+        fields.type.value = 'serpapi';
+        fields.config.value = '{}';
+        fields.cle_api.value = '';
+        fields.cron.value = '0 6 * * *';
+        fields.actif.checked = true;
+    }
+
+    window.ouvrirModaleCreate = function () {
+        reinitForm();
+        mode = 'create';
+        currentSourceId = null;
+        titre.textContent = 'Nouvelle source';
+        submitBtn.textContent = 'Creer';
+        actifWrapper.classList.remove('hidden');
+        modale.classList.remove('hidden');
+    };
+
+    window.ouvrirModaleEdit = function (source) {
+        reinitForm();
+        mode = 'edit';
+        currentSourceId = source.id;
+        titre.textContent = 'Editer : ' + source.nom;
+        submitBtn.textContent = 'Enregistrer';
+        fields.nom.value = source.nom || '';
+        fields.type.value = source.type || 'serpapi';
+        fields.config.value = JSON.stringify(source.config || {}, null, 2);
+        fields.cle_api.value = source.cle_api_ref || '';
+        fields.cron.value = source.cron_expr || '0 6 * * *';
+        // En edit, le champ actif est masque (toggle dedie)
+        actifWrapper.classList.add('hidden');
+        modale.classList.remove('hidden');
+    };
+
+    window.fermerModale = function () {
+        modale.classList.add('hidden');
+    };
+
+    // Fermeture au clic sur le fond
+    modale.addEventListener('click', function (e) {
+        if (e.target === modale) { fermerModale(); }
+    });
+
+    // Interception du submit : fetch manuel avec la bonne methode selon le mode.
+    // On n'utilise pas hx-post/hx-put parce que HTMX met en cache la methode
+    // au chargement initial et ne la met pas a jour dynamiquement.
+    form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        const formData = new FormData(form);
+        const url = (mode === 'edit')
+            ? '/api/sources/' + currentSourceId
+            : '/api/sources/';
+        const method = (mode === 'edit') ? 'PUT' : 'POST';
+
+        submitBtn.disabled = true;
+        const textOriginal = submitBtn.textContent;
+        submitBtn.textContent = 'En cours...';
+
+        try {
+            const response = await fetch(url, { method: method, body: formData });
+
+            if (!response.ok) {
+                alert('Erreur serveur : ' + response.status + ' ' + response.statusText);
+                submitBtn.disabled = false;
+                submitBtn.textContent = textOriginal;
+                return;
+            }
+
+            // Succes : l'API repond avec HX-Redirect, on le respecte manuellement
+            const redirect = response.headers.get('HX-Redirect');
+            window.location.href = redirect || '/parametres/';
+        } catch (err) {
+            alert('Erreur reseau : ' + err.message);
+            submitBtn.disabled = false;
+            submitBtn.textContent = textOriginal;
+        }
+    });
+})();
+</script>
 {% endblock %}

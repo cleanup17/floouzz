@@ -2,6 +2,74 @@
 
 > Tickets de dette technique : voir [dette-technique.md](dette-technique.md)
 
+## [0.5.2] — 2026-04-11
+
+### Affiliate Finder — detection de programmes d'affiliation Claude-powered
+
+**Ajoute :**
+- Service `app/services/affiliate_finder.py` : pour un mot-cle, lance
+  2 requetes Google.fr paralleles via SerpAPI ('"mot" programme affiliation'
+  + 'mot amazon associates OR awin'), detecte heuristiquement les plateformes
+  connues (Amazon Associates, Awin, CJ, Rakuten, ShareASale, Impact,
+  Effiliation, TradeDoubler, Kwanko, Programme direct), puis envoie les
+  resultats a Claude Sonnet 4.5 pour un verdict structure.
+- Stratégie hybride avec short-circuit : si aucune plateforme detectee
+  par l'heuristique locale -> verdict AUCUN sans appel Claude (economie
+  sur les niches non affiliables).
+- Regle speciale Amazon : detection par presence massive (>= 2 URLs
+  amazon.XX) car les URLs produit Amazon ne matchent aucun pattern
+  "affiliation" classique.
+- Post-traitement strict verdict/score (`_verdict_depuis_score`) pour
+  garantir la coherence de la grille AUCUN/FAIBLE/BON/EXCELLENT malgre
+  les incoherences Claude.
+- Cache 30 jours dans `cache_ia` avec `source='affiliate_finder'` — le
+  TTL le plus long des 3 services (pipeline_ia=24h, serp_gap=7j,
+  affiliate_finder=30j).
+- Retour JSON structure : score_affiliation, verdict, verdict_raison,
+  plateformes_detectees, programmes (nom, plateforme, commission,
+  cookie_duree, source_url), opportunites, requetes_utilisees,
+  nb_resultats_analyses.
+- Route `POST /analyser` : `asyncio.gather` etendu a 3 services
+  paralleles (pipeline_ia + serp_gap + affiliate_finder).
+- Nouveau champ `analyses.affiliate_finder JSONB` (migration `phase8.sql`).
+- Bloc "Affiliation (N plateformes)" dans `partials/fiche.html` : badge
+  verdict colore (EXCELLENT=vert, BON=jaune, FAIBLE=orange, AUCUN=rouge),
+  raison, pills plateformes, programmes repliables avec commission/cookie,
+  opportunites avec `+`, requetes Google en footer discret.
+- Section "Affiliation" dans l'export Markdown avec tableau des programmes
+  (Nom, Plateforme, Commission, Cookie) et echappement des pipes.
+- Script dry-run `scripts/test_affiliate_finder.py` pour iterer sur le
+  prompt sans toucher au module ni a la BDD.
+- Fixture `mock_affiliate_finder` dans `tests/conftest.py` : evite les
+  appels reels SerpAPI/Claude pendant les tests du router niches.
+
+**Valide :** 4 tests du prompt sur vrais mots-cles (coquillage allaitement,
+veilleuse coranique, lave vitres magnetique = FAIBLE 3-4/10, prevention
+burn out = AUCUN 1/10, complements alimentaires = EXCELLENT 8/10). Verdict
+discrimine correctement, utilisation de toute la fourchette 0-10.
+
+**Tests :** 108 PASS (pas de nouveaux tests pour affiliate_finder — a
+ajouter en v0.5.3 avec les tests serp_gap et scanner).
+
+---
+
+## [0.5.1] — 2026-04-11 (non publie)
+
+### Corrections pipeline_ia
+
+**Corrige :**
+- Prompt `pipeline_ia` : suppression du biais "SaaS" et ouverture de la
+  monetisation a tous les modeles en ligne (e-commerce, dropshipping,
+  affiliation, contenu/blog, service, SaaS). Nouveau role "entrepreneure
+  independante" au lieu de "consultante numerique solo". Nouveau bloc
+  DIMENSION MONETISATION avec les 6 modeles a considerer et exemples
+  directionnels (niche produit physique = 8/10 monetisation via
+  e-commerce meme si pas adaptee au SaaS).
+- Justification monetisation dans le schema JSON : doit desormais nommer
+  explicitement le modele le plus naturel.
+
+---
+
 ## [0.5.0] — 2026-04-11
 
 ### SERP Gap Detector — analyse concurrentielle SEO Claude-powered

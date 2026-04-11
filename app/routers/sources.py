@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models import Source
 from app.schemas import SourceCreate
+from app.services.scanner import _resoudre_source_type
 from app.services.sources.base import fetch_source
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
@@ -151,7 +152,12 @@ async def tester_source(
     if not source:
         return HTMLResponse("<p class='text-red-400'>Source introuvable</p>")
 
-    results = await fetch_source(source.type, "test", source.config)
+    # Resout le type de fetcher reel via le helper partage avec le scanner
+    # (lit config['fetcher'] en priorite, puis config['engine'] pour serpapi,
+    # puis fallback sur source.type). Evite le bug "Type de source inconnu :
+    # api" pour les sources qui utilisent un dispatcher indirect.
+    source_type = _resoudre_source_type(source)
+    results = await fetch_source(source_type, "test", source.config)
     html = "<div class='bg-gray-800 rounded p-3 mt-2 text-sm space-y-1'>"
     for r in results:
         if r.donnees.get("erreur"):

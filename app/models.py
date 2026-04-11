@@ -78,6 +78,11 @@ class Analyse(Base):
     # Retour brut du pipeline_ia (debug, rejeu)
     pipeline_ia: Mapped[dict | None] = mapped_column(JSONB)
 
+    # Retour brut de serp_gap.analyser_serp() (SERP Gap Detector)
+    # Contient : score_difficulte, verdict, verdict_raison, opportunites,
+    # faiblesses_detectees, top_10 (snapshot structure)
+    serp_gap: Mapped[dict | None] = mapped_column(JSONB)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

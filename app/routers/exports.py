@@ -82,7 +82,67 @@ def _rendre_markdown(niche: Niche, analyse: Analyse) -> str:
     lignes.append(f"⚠️ YMYL : {'Oui' if analyse.risque_ymyl else 'Non'}")
     lignes.append("")
 
+    # --- Concurrence SEO (SERP Gap Detector) ---------------------------------
+    # Section ajoutee si l'analyse a un snapshot serp_gap (analyses post-v0.5).
+    # Les anciennes analyses sans ce champ sautent ce bloc proprement.
+    if analyse.serp_gap:
+        lignes += _rendre_serp_gap_markdown(analyse.serp_gap)
+
     return "\n".join(lignes)
+
+
+def _rendre_serp_gap_markdown(gap: dict) -> list[str]:
+    """
+    Rend la section Concurrence SEO en Markdown a partir d'un dict serp_gap.
+    Retourne une liste de lignes prete a etre concatenee au reste du document.
+    """
+    lignes: list[str] = [
+        "## Concurrence SEO",
+        "",
+        f"**Score difficulte** : {gap.get('score_difficulte', 'N/A')}/10 — {gap.get('verdict', 'N/A')}",
+        "",
+    ]
+
+    raison = gap.get("verdict_raison")
+    if raison:
+        lignes += [raison, ""]
+
+    # Opportunites
+    opportunites = gap.get("opportunites") or []
+    lignes += ["### Opportunites", ""]
+    if opportunites:
+        lignes += [f"- {o}" for o in opportunites]
+    else:
+        lignes.append("_Aucune opportunite identifiee._")
+    lignes.append("")
+
+    # Faiblesses detectees
+    faiblesses = gap.get("faiblesses_detectees") or []
+    lignes += ["### Faiblesses detectees", ""]
+    if faiblesses:
+        lignes += [f"- {f}" for f in faiblesses]
+    else:
+        lignes.append("_Aucune faiblesse detectee._")
+    lignes.append("")
+
+    # Top 10 Google (tableau Markdown)
+    top_10 = gap.get("top_10") or []
+    if top_10:
+        lignes += [
+            "### Top 10 Google",
+            "",
+            "| # | Titre | Domaine | Type |",
+            "| --- | --- | --- | --- |",
+        ]
+        for item in top_10:
+            titre = (item.get("titre") or "").replace("|", "\\|")[:80]
+            domaine = item.get("domaine") or ""
+            type_page = item.get("type_page") or ""
+            position = item.get("position", "")
+            lignes.append(f"| {position} | {titre} | {domaine} | {type_page} |")
+        lignes.append("")
+
+    return lignes
 
 
 # ---------------------------------------------------------------------------

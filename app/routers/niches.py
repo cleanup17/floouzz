@@ -1,5 +1,6 @@
-"""Routes pour l'analyse et la consultation des niches (mode Analyse via pipeline_ia)."""
+"""Routes pour l'analyse et la consultation des niches (mode Analyse via pipeline_ia + serp_gap)."""
 
+import asyncio
 import uuid
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -12,6 +13,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models import Analyse, Niche, Signal, Thematique
 from app.services.pipeline_ia import analyser as analyser_pipeline
+from app.services.serp_gap import analyser_serp
 from app.services.sources.google_trends import fetch_google_trends
 
 router = APIRouter()
@@ -128,14 +130,19 @@ async def analyser_niche(request: Request, db: AsyncSession = Depends(get_db)):
     synthese = _construire_synthese(mot_cle, signaux_data)
     thematiques = await _charger_thematiques_actives(db)
 
-    # Appel pipeline_ia : un seul appel Claude qui produit tout le format riche
-    resultat = await analyser_pipeline(
-        titre=mot_cle,
-        contenu=synthese,
-        donnees={"signaux": signaux_data},
-        thematiques=thematiques,
-        session=db,
-        source="analyse",
+    # Appels paralleles : pipeline_ia (enrichissement) + serp_gap (analyse SERP)
+    # Les 2 services sont independants et beneficient chacun de leur cache
+    # respectif dans cache_ia (source='analyse' vs source='serp_gap').
+    resultat, gap = await asyncio.gather(
+        analyser_pipeline(
+            titre=mot_cle,
+            contenu=synthese,
+            donnees={"signaux": signaux_data},
+            thematiques=thematiques,
+            session=db,
+            source="analyse",
+        ),
+        analyser_serp(mot_cle=mot_cle, session=db),
     )
 
     # Extraction des scores 0-10 avec leurs justifications
@@ -156,6 +163,7 @@ async def analyser_niche(request: Request, db: AsyncSession = Depends(get_db)):
         risque_ymyl=resultat["risque_ymyl"],
         niche_detectee=resultat["niche_detectee"],
         pipeline_ia=resultat,
+        serp_gap=gap,
     )
     db.add(analyse)
     await db.flush()

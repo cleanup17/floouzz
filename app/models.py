@@ -89,6 +89,14 @@ class Analyse(Base):
     # opportunites, requetes_utilisees, nb_resultats_analyses
     affiliate_finder: Mapped[dict | None] = mapped_column(JSONB)
 
+    # Retour brut de saisonnalite.analyser_saisonnalite() (Detection saisonnalite)
+    # Contient : score_saisonnalite, verdict (STABLE/CYCLIQUE/SAISONNIER/
+    # PIC_UNIQUE/AUCUNE_DONNEE), verdict_raison, stats (min/max/moyenne/ratio/
+    # coef/concentration_top8), pic (mois/date/valeur/semaines_top_80pct),
+    # position_actuelle (mois_actuel/distance_au_pic_mois/phase),
+    # recommandations, serie (53 points hebdomadaires pour sparkline UI)
+    saisonnalite: Mapped[dict | None] = mapped_column(JSONB)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

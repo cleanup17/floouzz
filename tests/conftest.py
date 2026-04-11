@@ -308,20 +308,71 @@ def mock_affiliate_finder(monkeypatch) -> AsyncMock:
 
 
 @pytest.fixture
+def mock_saisonnalite(monkeypatch) -> AsyncMock:
+    """
+    Patch app.routers.niches.analyser_saisonnalite.
+    Retourne un resultat saisonnalite factice conforme au contrat pour que
+    les tests de /analyser n'appellent jamais le vrai SerpAPI Google Trends.
+    """
+    mock = AsyncMock(return_value={
+        "mot_cle": "test",
+        "periode": "12 derniers mois",
+        "geo": "FR",
+        "score_saisonnalite": 4,
+        "verdict": "CYCLIQUE",
+        "verdict_raison": "Cycles moderes : ratio pic/moyenne = 2.5.",
+        "stats": {
+            "nb_points": 53,
+            "min": 20,
+            "max": 100,
+            "moyenne": 45.0,
+            "mediane": 42.0,
+            "ecart_type": 18.0,
+            "ratio_pic_moyenne": 2.5,
+            "coefficient_variation": 0.4,
+            "concentration_top8": 0.30,
+        },
+        "pic": {
+            "mois_principal": "janvier",
+            "date_pic": "11-17 janv. 2026",
+            "valeur_pic": 100,
+            "semaines_top_80pct": 20,
+        },
+        "position_actuelle": {
+            "mois_actuel": "avril",
+            "distance_au_pic_mois": 9,
+            "phase": "creux",
+        },
+        "recommandations": [
+            "Creux actuel, pic attendu en janvier (dans 9 mois).",
+            "Lance ton contenu 8 mois avant pour etre indexe au bon moment.",
+        ],
+        "serie": {
+            "1-7 avr. 2025": 45,
+            "11-17 janv. 2026": 100,
+        },
+    })
+    monkeypatch.setattr("app.routers.niches.analyser_saisonnalite", mock)
+    return mock
+
+
+@pytest.fixture
 def mocks_analyser(
     mock_pipeline_ia: AsyncMock,
     mock_google_trends: AsyncMock,
     mock_thematiques: AsyncMock,
     mock_serp_gap: AsyncMock,
     mock_affiliate_finder: AsyncMock,
+    mock_saisonnalite: AsyncMock,
 ) -> dict[str, AsyncMock]:
-    """Regroupe les 5 mocks necessaires a un test du POST /analyser."""
+    """Regroupe les 6 mocks necessaires a un test du POST /analyser."""
     return {
         "pipeline_ia": mock_pipeline_ia,
         "google_trends": mock_google_trends,
         "thematiques": mock_thematiques,
         "serp_gap": mock_serp_gap,
         "affiliate_finder": mock_affiliate_finder,
+        "saisonnalite": mock_saisonnalite,
     }
 
 

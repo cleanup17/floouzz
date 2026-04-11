@@ -1,6 +1,7 @@
 """Routes pour l'analyse et la consultation des niches.
 
-Mode Analyse : pipeline_ia + serp_gap + affiliate_finder en parallele.
+Mode Analyse : pipeline_ia + serp_gap + affiliate_finder + saisonnalite
+en parallele via asyncio.gather.
 """
 
 import asyncio
@@ -17,6 +18,7 @@ from app.database import get_db
 from app.models import Analyse, Niche, Signal, Thematique
 from app.services.affiliate_finder import chercher_affiliation
 from app.services.pipeline_ia import analyser as analyser_pipeline
+from app.services.saisonnalite import analyser_saisonnalite
 from app.services.serp_gap import analyser_serp
 from app.services.sources.google_trends import fetch_google_trends
 
@@ -135,13 +137,15 @@ async def analyser_niche(request: Request, db: AsyncSession = Depends(get_db)):
     thematiques = await _charger_thematiques_actives(db)
 
     # Appels paralleles : pipeline_ia (enrichissement) + serp_gap (analyse SERP)
-    #                   + affiliate_finder (detection programmes d'affiliation)
-    # Les 3 services sont independants et beneficient chacun de leur cache
+    #                   + affiliate_finder (programmes d'affiliation)
+    #                   + saisonnalite (courbe Google Trends 12 mois)
+    # Les 4 services sont independants et beneficient chacun de leur cache
     # respectif dans cache_ia :
     #   - pipeline_ia      : source='analyse',         TTL 24h
     #   - serp_gap         : source='serp_gap',        TTL 7j
     #   - affiliate_finder : source='affiliate_finder',TTL 30j
-    resultat, gap, affiliation = await asyncio.gather(
+    #   - saisonnalite     : source='saisonnalite',    TTL 30j
+    resultat, gap, affiliation, saison = await asyncio.gather(
         analyser_pipeline(
             titre=mot_cle,
             contenu=synthese,
@@ -152,6 +156,7 @@ async def analyser_niche(request: Request, db: AsyncSession = Depends(get_db)):
         ),
         analyser_serp(mot_cle=mot_cle, session=db),
         chercher_affiliation(mot_cle=mot_cle, session=db),
+        analyser_saisonnalite(mot_cle=mot_cle, session=db),
     )
 
     # Extraction des scores 0-10 avec leurs justifications
@@ -174,6 +179,7 @@ async def analyser_niche(request: Request, db: AsyncSession = Depends(get_db)):
         pipeline_ia=resultat,
         serp_gap=gap,
         affiliate_finder=affiliation,
+        saisonnalite=saison,
     )
     db.add(analyse)
     await db.flush()

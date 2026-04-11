@@ -330,6 +330,143 @@
     </section>
     {% endif %}
 
+    {# ---------------- Saisonnalite ---------------- #}
+    {% if analyse.saisonnalite %}
+    {% set sais = analyse.saisonnalite %}
+    {% set sais_verdict_couleurs = {
+        'PIC_UNIQUE':    'bg-red-500/20    text-red-300    border-red-500/40',
+        'SAISONNIER':    'bg-orange-500/20 text-orange-300 border-orange-500/40',
+        'CYCLIQUE':      'bg-blue-500/20   text-blue-300   border-blue-500/40',
+        'STABLE':        'bg-gray-500/20   text-gray-300   border-gray-500/40',
+        'AUCUNE_DONNEE': 'bg-gray-700/20   text-gray-500   border-gray-700/40',
+    } %}
+    {% set sais_verdict_class = sais_verdict_couleurs.get(sais.verdict, 'bg-gray-500/20 text-gray-300 border-gray-500/40') %}
+    {% set phase_icones = {
+        'pic':      '&#9650;',
+        'hausse':   '&#8599;',
+        'descente': '&#8600;',
+        'creux':    '&#9632;',
+    } %}
+    <section class="pt-4 border-t border-gray-800">
+        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Saisonnalite
+        </h3>
+
+        {# Header : score + verdict #}
+        <div class="flex items-start justify-between gap-4 mb-4">
+            <div class="flex items-baseline gap-3">
+                <span class="text-2xl font-bold text-white">
+                    {{ sais.score_saisonnalite }}<span class="text-sm text-gray-500">/10</span>
+                </span>
+                <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold border {{ sais_verdict_class }}">
+                    {{ sais.verdict }}
+                </span>
+            </div>
+        </div>
+        {% if sais.verdict_raison %}
+        <p class="text-sm text-gray-300 mb-4 leading-relaxed">{{ sais.verdict_raison }}</p>
+        {% endif %}
+
+        {# Pic + phase actuelle (grille 2 colonnes) #}
+        {% if sais.pic and sais.position_actuelle %}
+        <div class="grid grid-cols-2 gap-3 mb-4">
+            <div class="bg-gray-800/40 border border-gray-700/50 rounded-lg px-3 py-2">
+                <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Pic principal</p>
+                <p class="text-sm text-white font-medium">
+                    {% if sais.pic.mois_principal %}
+                    {{ sais.pic.mois_principal|capitalize }}
+                    {% if sais.pic.valeur_pic %}
+                    <span class="text-gray-500 text-xs">({{ sais.pic.valeur_pic }}/100)</span>
+                    {% endif %}
+                    {% else %}
+                    <span class="text-gray-500">Non detecte</span>
+                    {% endif %}
+                </p>
+            </div>
+            <div class="bg-gray-800/40 border border-gray-700/50 rounded-lg px-3 py-2">
+                <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Phase actuelle</p>
+                <p class="text-sm text-white font-medium">
+                    <span class="inline-block mr-1">
+                        {{ phase_icones.get(sais.position_actuelle.phase, '&#9632;')|safe }}
+                    </span>
+                    {{ sais.position_actuelle.phase|capitalize }}
+                    {% if sais.position_actuelle.distance_au_pic_mois and sais.position_actuelle.distance_au_pic_mois > 0 %}
+                    <span class="text-gray-500 text-xs">
+                        (pic dans {{ sais.position_actuelle.distance_au_pic_mois }}m)
+                    </span>
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+        {% endif %}
+
+        {# Recommandations #}
+        {% if sais.recommandations %}
+        <div class="mb-4">
+            <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Recommandations
+            </h4>
+            <ul class="space-y-1.5">
+                {% for reco in sais.recommandations %}
+                <li class="flex items-start gap-2 text-sm text-gray-300">
+                    <span class="text-floouzz-400 font-bold flex-shrink-0 mt-0.5">&rsaquo;</span>
+                    <span>{{ reco }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {# Sparkline 12 mois — HTML+CSS pur, 1 barre par semaine #}
+        {% if sais.serie %}
+        <details class="bg-gray-800/40 border border-gray-700/50 rounded-lg">
+            <summary class="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide cursor-pointer hover:text-gray-200 transition select-none">
+                Courbe 12 mois ({{ sais.serie|length }} semaines)
+            </summary>
+            <div class="px-4 py-3">
+                {# max_val pour normaliser les hauteurs ; on utilise sais.stats.max
+                   si dispo, sinon 100 (valeur Google Trends par defaut) #}
+                {% set max_val = sais.stats.max if sais.stats and sais.stats.max else 100 %}
+                <div class="flex items-end gap-px h-16 w-full">
+                    {% for date, val in sais.serie.items() %}
+                    {% set hauteur = ((val / max_val * 100)|int) if max_val > 0 else 0 %}
+                    <div class="flex-1 bg-floouzz-600/70 hover:bg-floouzz-500 transition rounded-sm"
+                         style="height: {{ hauteur }}%; min-height: 1px;"
+                         title="{{ date }} : {{ val }}/100"></div>
+                    {% endfor %}
+                </div>
+                {# Axe temporel compact : debut / milieu / fin #}
+                <div class="flex justify-between mt-2 text-xs text-gray-600 font-mono">
+                    {% set dates_list = sais.serie.keys()|list %}
+                    {% if dates_list|length >= 3 %}
+                    <span>{{ dates_list[0] }}</span>
+                    <span>{{ dates_list[dates_list|length // 2] }}</span>
+                    <span>{{ dates_list[-1] }}</span>
+                    {% endif %}
+                </div>
+            </div>
+        </details>
+        {% endif %}
+
+        {# Stats techniques (debug / tracabilite) #}
+        {% if sais.stats %}
+        <details class="text-xs mt-3">
+            <summary class="text-gray-600 hover:text-gray-400 cursor-pointer select-none">
+                Stats techniques
+            </summary>
+            <dl class="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-gray-500">
+                <dt>Moyenne :</dt><dd class="text-gray-400">{{ sais.stats.moyenne }}</dd>
+                <dt>Mediane :</dt><dd class="text-gray-400">{{ sais.stats.mediane }}</dd>
+                <dt>Ecart-type :</dt><dd class="text-gray-400">{{ sais.stats.ecart_type }}</dd>
+                <dt>Ratio pic/moyenne :</dt><dd class="text-gray-400">{{ sais.stats.ratio_pic_moyenne }}</dd>
+                <dt>Coefficient variation :</dt><dd class="text-gray-400">{{ sais.stats.coefficient_variation }}</dd>
+                <dt>Concentration top 8 :</dt><dd class="text-gray-400">{{ (sais.stats.concentration_top8 * 100)|int }}%</dd>
+            </dl>
+        </details>
+        {% endif %}
+    </section>
+    {% endif %}
+
     {# ---------------- Footer ---------------- #}
     <footer class="flex items-center justify-between pt-4 border-t border-gray-800 text-sm">
         <span class="text-gray-500">

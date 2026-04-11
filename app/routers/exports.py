@@ -93,6 +93,11 @@ def _rendre_markdown(niche: Niche, analyse: Analyse) -> str:
     if analyse.affiliate_finder:
         lignes += _rendre_affiliate_markdown(analyse.affiliate_finder)
 
+    # --- Saisonnalite --------------------------------------------------------
+    # Section ajoutee si l'analyse a un snapshot saisonnalite (v0.5.5+).
+    if analyse.saisonnalite:
+        lignes += _rendre_saisonnalite_markdown(analyse.saisonnalite)
+
     return "\n".join(lignes)
 
 
@@ -216,6 +221,90 @@ def _rendre_affiliate_markdown(aff: dict) -> list[str]:
         lignes += ["### Requetes Google utilisees", ""]
         lignes += [f"- `{r}`" for r in requetes]
         lignes.append("")
+
+    return lignes
+
+
+def _rendre_saisonnalite_markdown(sais: dict) -> list[str]:
+    """
+    Rend la section Saisonnalite en Markdown a partir d'un dict saisonnalite.
+    Retourne une liste de lignes prete a etre concatenee au reste du document.
+    Ne retourne PAS la serie complete (53 points = trop verbeux pour Markdown).
+    """
+    lignes: list[str] = [
+        "## Saisonnalite",
+        "",
+        f"**Score** : {sais.get('score_saisonnalite', 'N/A')}/10 — {sais.get('verdict', 'N/A')}",
+        "",
+    ]
+
+    raison = sais.get("verdict_raison")
+    if raison:
+        lignes += [raison, ""]
+
+    # Pic principal
+    pic = sais.get("pic") or {}
+    if pic.get("mois_principal") or pic.get("date_pic"):
+        lignes += ["### Pic principal", ""]
+        if pic.get("mois_principal"):
+            mois = str(pic["mois_principal"]).capitalize()
+            valeur = pic.get("valeur_pic")
+            if valeur:
+                lignes.append(f"- **Mois** : {mois} ({valeur}/100)")
+            else:
+                lignes.append(f"- **Mois** : {mois}")
+        if pic.get("date_pic"):
+            lignes.append(f"- **Semaine du pic** : {pic['date_pic']}")
+        if pic.get("semaines_top_80pct"):
+            lignes.append(
+                f"- **Concentration** : 80% du signal sur "
+                f"{pic['semaines_top_80pct']} semaines"
+            )
+        lignes.append("")
+
+    # Phase actuelle
+    position = sais.get("position_actuelle") or {}
+    if position.get("phase"):
+        lignes += ["### Phase actuelle", ""]
+        phase = str(position["phase"]).capitalize()
+        lignes.append(f"- **Phase** : {phase}")
+        if position.get("mois_actuel"):
+            lignes.append(f"- **Mois courant** : {position['mois_actuel']}")
+        distance = position.get("distance_au_pic_mois")
+        if distance is not None and distance > 0:
+            lignes.append(f"- **Distance au prochain pic** : {distance} mois")
+        lignes.append("")
+
+    # Recommandations
+    recommandations = sais.get("recommandations") or []
+    lignes += ["### Recommandations", ""]
+    if recommandations:
+        lignes += [f"- {r}" for r in recommandations]
+    else:
+        lignes.append("_Aucune recommandation generee._")
+    lignes.append("")
+
+    # Stats techniques (tableau Markdown compact)
+    stats = sais.get("stats") or {}
+    if stats and stats.get("nb_points"):
+        concentration = stats.get("concentration_top8", 0)
+        concentration_pct = int(concentration * 100) if concentration else 0
+        lignes += [
+            "### Stats techniques",
+            "",
+            "| Metrique | Valeur |",
+            "| --- | --- |",
+            f"| Nb points (semaines) | {stats.get('nb_points', 0)} |",
+            f"| Min | {stats.get('min', 0)} |",
+            f"| Max | {stats.get('max', 0)} |",
+            f"| Moyenne | {stats.get('moyenne', 0)} |",
+            f"| Mediane | {stats.get('mediane', 0)} |",
+            f"| Ecart-type | {stats.get('ecart_type', 0)} |",
+            f"| Ratio pic/moyenne | {stats.get('ratio_pic_moyenne', 0)} |",
+            f"| Coefficient variation | {stats.get('coefficient_variation', 0)} |",
+            f"| Concentration top 8 | {concentration_pct}% |",
+            "",
+        ]
 
     return lignes
 

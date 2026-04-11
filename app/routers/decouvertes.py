@@ -82,8 +82,7 @@ async def page_decouverte(
     result_total = await db.execute(stmt_total)
     total_signaux = result_total.scalar() or 0
 
-    return templates.TemplateResponse("decouverte.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "decouverte.html", {
         "signaux": signaux,
         "tags_count": tags_count,
         "verdict_count": verdict_count,
@@ -143,8 +142,7 @@ async def approfondir_signal(
     decouverte = result.scalar_one_or_none()
 
     if not decouverte:
-        return templates.TemplateResponse("partials/erreur.html", {
-            "request": request,
+        return templates.TemplateResponse(request, "partials/erreur.html", {
             "message": "Signal introuvable.",
         })
 

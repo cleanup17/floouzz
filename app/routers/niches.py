@@ -88,8 +88,7 @@ async def page_analyser(
         for row in result.all()
     ]
 
-    return templates.TemplateResponse("index.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "index.html", {
         "niches_recentes": niches_recentes,
         "mot_cle_prefill": mot_cle or "",
     })
@@ -102,8 +101,7 @@ async def analyser_niche(request: Request, db: AsyncSession = Depends(get_db)):
     mot_cle = form.get("mot_cle", "").strip().lower()
 
     if not mot_cle or len(mot_cle) < 2:
-        return templates.TemplateResponse("partials/erreur.html", {
-            "request": request,
+        return templates.TemplateResponse(request, "partials/erreur.html", {
             "message": "Le mot-cle doit contenir au moins 2 caracteres.",
         })
 
@@ -187,8 +185,7 @@ async def analyser_niche(request: Request, db: AsyncSession = Depends(get_db)):
     result_count = await db.execute(stmt_count)
     nb_analyses = result_count.scalar()
 
-    return templates.TemplateResponse("partials/fiche.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "partials/fiche.html", {
         "niche": niche,
         "analyse": analyse,
         "nb_analyses": nb_analyses,
@@ -208,8 +205,9 @@ async def page_niche(
 
     if niche is None:
         return templates.TemplateResponse(
+            request,
             "partials/erreur.html",
-            {"request": request, "message": "Niche introuvable."},
+            {"message": "Niche introuvable."},
             status_code=404,
         )
 
@@ -222,8 +220,7 @@ async def page_niche(
     result_analyses = await db.execute(stmt_analyses)
     analyses = result_analyses.scalars().all()
 
-    return templates.TemplateResponse("historique.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "historique.html", {
         "niche": niche,
         "analyses": analyses,
     })

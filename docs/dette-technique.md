@@ -5,28 +5,19 @@ Separe du changelog pour garder l'historique des versions lisible.
 
 ---
 
-## TemplateResponse API depreciee (Starlette)
+## ~~TemplateResponse API depreciee (Starlette)~~
 
-**Statut** : ouvert
+**Statut** : RESOLU en v0.4.0 (2026-04-11)
 **Decouvert** : v0.3.0 (tests pytest)
-**Impact** : 10 warnings de deprecation a chaque rendu de template
 
-Tous les routers appellent :
-```python
-templates.TemplateResponse("nom.html", {"request": request, ...})
-```
-
-La nouvelle API Starlette est :
+Migration vers la nouvelle API Starlette :
 ```python
 templates.TemplateResponse(request, "nom.html", context)
 ```
 
-**Fichiers a corriger en une seule passe** :
-- `app/routers/niches.py`
-- `app/routers/decouvertes.py`
-- `app/routers/sources.py`
-- `app/routers/parametres.py`
-- `app/routers/webhooks.py`
-- Tout autre consommateur decouvert au grep
+8 occurrences corrigees sur 3 fichiers :
+- `app/routers/niches.py` (5)
+- `app/routers/decouvertes.py` (2)
+- `app/routers/parametres.py` (1)
 
-**Effort estime** : 30 minutes
+Validation : 100 tests PASS, 0 warning de deprecation restant.

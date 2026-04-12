@@ -357,6 +357,48 @@ def mock_saisonnalite(monkeypatch) -> AsyncMock:
 
 
 @pytest.fixture
+def mock_marketplace_gap(monkeypatch) -> AsyncMock:
+    """
+    Patch app.routers.niches.analyser_marketplace.
+    Retourne un resultat marketplace_gap factice conforme au contrat.
+    """
+    mock = AsyncMock(return_value={
+        "mot_cle": "test",
+        "score_marketplace": 5,
+        "verdict": "MOYEN",
+        "verdict_raison": "200 resultats sur 2 plateformes.",
+        "plateformes_actives": 2,
+        "total_resultats": 200,
+        "details_par_plateforme": [
+            {
+                "nom": "Etsy",
+                "domaine": "etsy.com/fr/listing",
+                "total_resultats": 120,
+                "echantillon_visible": 10,
+                "exemples": [{"titre": "Produit test", "url": "https://etsy.com/fr/listing/123"}],
+                "erreur": None,
+            },
+            {
+                "nom": "eBay",
+                "domaine": "www.ebay.fr",
+                "total_resultats": 80,
+                "echantillon_visible": 10,
+                "exemples": [],
+                "erreur": None,
+            },
+        ],
+        "recommandations": ["Sweet spot pour se positionner."],
+        "requetes_utilisees": [
+            'site:etsy.com/fr/listing "test"',
+            'site:fr.shopping.rakuten.com "test"',
+            'site:www.ebay.fr "test"',
+        ],
+    })
+    monkeypatch.setattr("app.routers.niches.analyser_marketplace", mock)
+    return mock
+
+
+@pytest.fixture
 def mocks_analyser(
     mock_pipeline_ia: AsyncMock,
     mock_google_trends: AsyncMock,
@@ -364,8 +406,9 @@ def mocks_analyser(
     mock_serp_gap: AsyncMock,
     mock_affiliate_finder: AsyncMock,
     mock_saisonnalite: AsyncMock,
+    mock_marketplace_gap: AsyncMock,
 ) -> dict[str, AsyncMock]:
-    """Regroupe les 6 mocks necessaires a un test du POST /analyser."""
+    """Regroupe les 7 mocks necessaires a un test du POST /analyser."""
     return {
         "pipeline_ia": mock_pipeline_ia,
         "google_trends": mock_google_trends,
@@ -373,6 +416,7 @@ def mocks_analyser(
         "serp_gap": mock_serp_gap,
         "affiliate_finder": mock_affiliate_finder,
         "saisonnalite": mock_saisonnalite,
+        "marketplace_gap": mock_marketplace_gap,
     }
 
 

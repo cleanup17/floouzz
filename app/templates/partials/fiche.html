@@ -467,6 +467,125 @@
     </section>
     {% endif %}
 
+    {# ---------------- Marketplace Gap ---------------- #}
+    {% if analyse.marketplace_gap %}
+    {% set mp = analyse.marketplace_gap %}
+    {% set mp_verdict_couleurs = {
+        'SATURE': 'bg-red-500/20    text-red-300    border-red-500/40',
+        'MOYEN':  'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
+        'FAIBLE': 'bg-green-500/20  text-green-300  border-green-500/40',
+        'AUCUN':  'bg-gray-500/20   text-gray-300   border-gray-500/40',
+    } %}
+    {% set mp_verdict_class = mp_verdict_couleurs.get(mp.verdict, 'bg-gray-500/20 text-gray-300 border-gray-500/40') %}
+    <section class="pt-4 border-t border-gray-800">
+        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Marketplaces
+            {% if mp.plateformes_actives %}
+            <span class="text-gray-600 normal-case">
+                ({{ mp.plateformes_actives }}/{{ mp.details_par_plateforme|length if mp.details_par_plateforme else 3 }} actives)
+            </span>
+            {% endif %}
+        </h3>
+
+        {# Header : score + verdict #}
+        <div class="flex items-start justify-between gap-4 mb-4">
+            <div class="flex items-baseline gap-3">
+                <span class="text-2xl font-bold text-white">
+                    {{ mp.score_marketplace }}<span class="text-sm text-gray-500">/10</span>
+                </span>
+                <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold border {{ mp_verdict_class }}">
+                    {{ mp.verdict }}
+                </span>
+            </div>
+            {% if mp.total_resultats %}
+            <span class="text-sm text-gray-500">
+                {{ mp.total_resultats }} vendeur{{ 's' if mp.total_resultats > 1 else '' }}
+            </span>
+            {% endif %}
+        </div>
+        {% if mp.verdict_raison %}
+        <p class="text-sm text-gray-300 mb-4 leading-relaxed">{{ mp.verdict_raison }}</p>
+        {% endif %}
+
+        {# Detail par plateforme #}
+        {% if mp.details_par_plateforme %}
+        <div class="grid grid-cols-3 gap-3 mb-4">
+            {% for plat in mp.details_par_plateforme %}
+            <div class="bg-gray-800/40 border border-gray-700/50 rounded-lg px-3 py-2">
+                <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">{{ plat.nom }}</p>
+                {% if plat.erreur %}
+                <p class="text-sm text-red-400">erreur</p>
+                {% elif plat.total_resultats and plat.total_resultats > 0 %}
+                <p class="text-sm text-white font-semibold">
+                    {{ plat.total_resultats }}
+                    <span class="text-xs text-gray-500 font-normal">resultat{{ 's' if plat.total_resultats > 1 else '' }}</span>
+                </p>
+                {% else %}
+                <p class="text-sm text-gray-600">0</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {# Recommandations #}
+        {% if mp.recommandations %}
+        <div class="mb-4">
+            <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Recommandations
+            </h4>
+            <ul class="space-y-1.5">
+                {% for reco in mp.recommandations %}
+                <li class="flex items-start gap-2 text-sm text-gray-300">
+                    <span class="text-floouzz-400 font-bold flex-shrink-0 mt-0.5">&rsaquo;</span>
+                    <span>{{ reco }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {# Exemples de produits (repliable) #}
+        {% set has_exemples = mp.details_par_plateforme and mp.details_par_plateforme|selectattr('exemples')|list %}
+        {% if has_exemples %}
+        <details class="bg-gray-800/40 border border-gray-700/50 rounded-lg">
+            <summary class="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide cursor-pointer hover:text-gray-200 transition select-none">
+                Exemples de produits
+            </summary>
+            <div class="px-4 pb-3 space-y-2">
+                {% for plat in mp.details_par_plateforme %}
+                {% if plat.exemples %}
+                {% for ex in plat.exemples %}
+                <div class="flex items-start gap-2 text-xs pt-2 border-t border-gray-800">
+                    <span class="text-gray-600 flex-shrink-0 w-14">{{ plat.nom }}</span>
+                    <a href="{{ ex.url }}" target="_blank" rel="noopener"
+                       class="text-gray-300 hover:text-floouzz-400 transition truncate">
+                        {{ ex.titre[:80] }}
+                    </a>
+                </div>
+                {% endfor %}
+                {% endif %}
+                {% endfor %}
+            </div>
+        </details>
+        {% endif %}
+
+        {# Requetes Google utilisees (debug) #}
+        {% if mp.requetes_utilisees %}
+        <details class="text-xs mt-3">
+            <summary class="text-gray-600 hover:text-gray-400 cursor-pointer select-none">
+                Requetes Google utilisees
+            </summary>
+            <ul class="mt-2 space-y-1 text-gray-500 font-mono">
+                {% for req in mp.requetes_utilisees %}
+                <li>&rsaquo; {{ req }}</li>
+                {% endfor %}
+            </ul>
+        </details>
+        {% endif %}
+    </section>
+    {% endif %}
+
     {# ---------------- Footer ---------------- #}
     <footer class="flex items-center justify-between pt-4 border-t border-gray-800 text-sm">
         <span class="text-gray-500">

@@ -1,7 +1,7 @@
 """Routes pour l'analyse et la consultation des niches.
 
 Mode Analyse : pipeline_ia + serp_gap + affiliate_finder + saisonnalite
-en parallele via asyncio.gather.
++ marketplace_gap en parallele via asyncio.gather (5 services).
 """
 
 import asyncio
@@ -17,6 +17,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models import Analyse, Niche, Signal, Thematique
 from app.services.affiliate_finder import chercher_affiliation
+from app.services.marketplace_gap import analyser_marketplace
 from app.services.pipeline_ia import analyser as analyser_pipeline
 from app.services.saisonnalite import analyser_saisonnalite
 from app.services.serp_gap import analyser_serp
@@ -136,16 +137,14 @@ async def analyser_niche(request: Request, db: AsyncSession = Depends(get_db)):
     synthese = _construire_synthese(mot_cle, signaux_data)
     thematiques = await _charger_thematiques_actives(db)
 
-    # Appels paralleles : pipeline_ia (enrichissement) + serp_gap (analyse SERP)
-    #                   + affiliate_finder (programmes d'affiliation)
-    #                   + saisonnalite (courbe Google Trends 12 mois)
-    # Les 4 services sont independants et beneficient chacun de leur cache
+    # Appels paralleles : 5 services independants, chacun avec son cache
     # respectif dans cache_ia :
-    #   - pipeline_ia      : source='analyse',         TTL 24h
-    #   - serp_gap         : source='serp_gap',        TTL 7j
-    #   - affiliate_finder : source='affiliate_finder',TTL 30j
-    #   - saisonnalite     : source='saisonnalite',    TTL 30j
-    resultat, gap, affiliation, saison = await asyncio.gather(
+    #   - pipeline_ia      : source='analyse',          TTL 24h
+    #   - serp_gap         : source='serp_gap',         TTL 7j
+    #   - affiliate_finder : source='affiliate_finder',  TTL 30j
+    #   - saisonnalite     : source='saisonnalite',     TTL 30j
+    #   - marketplace_gap  : source='marketplace_gap',  TTL 30j
+    resultat, gap, affiliation, saison, marketplace = await asyncio.gather(
         analyser_pipeline(
             titre=mot_cle,
             contenu=synthese,
@@ -157,6 +156,7 @@ async def analyser_niche(request: Request, db: AsyncSession = Depends(get_db)):
         analyser_serp(mot_cle=mot_cle, session=db),
         chercher_affiliation(mot_cle=mot_cle, session=db),
         analyser_saisonnalite(mot_cle=mot_cle, session=db),
+        analyser_marketplace(mot_cle=mot_cle, session=db),
     )
 
     # Extraction des scores 0-10 avec leurs justifications
@@ -180,6 +180,7 @@ async def analyser_niche(request: Request, db: AsyncSession = Depends(get_db)):
         serp_gap=gap,
         affiliate_finder=affiliation,
         saisonnalite=saison,
+        marketplace_gap=marketplace,
     )
     db.add(analyse)
     await db.flush()

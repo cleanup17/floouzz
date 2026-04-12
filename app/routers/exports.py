@@ -98,6 +98,11 @@ def _rendre_markdown(niche: Niche, analyse: Analyse) -> str:
     if analyse.saisonnalite:
         lignes += _rendre_saisonnalite_markdown(analyse.saisonnalite)
 
+    # --- Marketplace Gap -----------------------------------------------------
+    # Section ajoutee si l'analyse a un snapshot marketplace_gap (v0.5.6+).
+    if analyse.marketplace_gap:
+        lignes += _rendre_marketplace_markdown(analyse.marketplace_gap)
+
     return "\n".join(lignes)
 
 
@@ -305,6 +310,68 @@ def _rendre_saisonnalite_markdown(sais: dict) -> list[str]:
             f"| Concentration top 8 | {concentration_pct}% |",
             "",
         ]
+
+    return lignes
+
+
+def _rendre_marketplace_markdown(mp: dict) -> list[str]:
+    """
+    Rend la section Marketplace Gap en Markdown.
+    Retourne une liste de lignes prete a etre concatenee au document.
+    """
+    nb_actives = mp.get("plateformes_actives", 0)
+    details = mp.get("details_par_plateforme") or []
+    nb_total = len(details) if details else 3
+
+    if nb_actives:
+        titre = f"## Marketplaces ({nb_actives}/{nb_total} actives)"
+    else:
+        titre = "## Marketplaces"
+
+    lignes: list[str] = [
+        titre,
+        "",
+        f"**Score** : {mp.get('score_marketplace', 'N/A')}/10 — {mp.get('verdict', 'N/A')}",
+        "",
+    ]
+
+    raison = mp.get("verdict_raison")
+    if raison:
+        lignes += [raison, ""]
+
+    # Detail par plateforme (tableau Markdown)
+    if details:
+        lignes += [
+            "### Detail par plateforme",
+            "",
+            "| Plateforme | Resultats | Echantillon |",
+            "| --- | --- | --- |",
+        ]
+        for plat in details:
+            nom = plat.get("nom") or ""
+            if plat.get("erreur"):
+                lignes.append(f"| {nom} | erreur | - |")
+            else:
+                total = plat.get("total_resultats", 0)
+                echantillon = plat.get("echantillon_visible", 0)
+                lignes.append(f"| {nom} | {total} | {echantillon} |")
+        lignes.append("")
+
+    # Recommandations
+    recommandations = mp.get("recommandations") or []
+    lignes += ["### Recommandations", ""]
+    if recommandations:
+        lignes += [f"- {r}" for r in recommandations]
+    else:
+        lignes.append("_Aucune recommandation generee._")
+    lignes.append("")
+
+    # Requetes Google (tracabilite)
+    requetes = mp.get("requetes_utilisees") or []
+    if requetes:
+        lignes += ["### Requetes Google utilisees", ""]
+        lignes += [f"- `{r}`" for r in requetes]
+        lignes.append("")
 
     return lignes
 

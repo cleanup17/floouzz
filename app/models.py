@@ -97,6 +97,13 @@ class Analyse(Base):
     # recommandations, serie (53 points hebdomadaires pour sparkline UI)
     saisonnalite: Mapped[dict | None] = mapped_column(JSONB)
 
+    # Retour brut de marketplace_gap.analyser_marketplace() (Marketplace Gap)
+    # Contient : score_marketplace, verdict (AUCUN/FAIBLE/MOYEN/SATURE),
+    # verdict_raison, plateformes_actives, total_resultats,
+    # details_par_plateforme (nom/domaine/total_resultats/exemples),
+    # recommandations, requetes_utilisees
+    marketplace_gap: Mapped[dict | None] = mapped_column(JSONB)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

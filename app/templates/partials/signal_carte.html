@@ -3,6 +3,10 @@
   Meme design que partials/fiche.html : badge verdict colore, 4 scores,
   justifications, YMYL conditionnel. Les actions HTMX (ignorer / approfondir)
   sont conservees a droite.
+
+  Les mots-cles SEO et le bouton "Analyser la niche" lancent une analyse
+  complete directement depuis le dashboard via hx-post /analyser — la fiche
+  resultante remplace la carte signal dans le DOM.
 #}
 
 {% set verdict_couleurs = {
@@ -115,7 +119,29 @@
     </p>
     {% endif %}
 
-    {# ---------------- Tags + mots-cles SEO ---------------- #}
+    {# ---------------- Bouton Analyser la niche (niche_detectee) ---------------- #}
+    {# Soumet directement POST /analyser avec le mot-cle = niche_detectee.
+       Le resultat (fiche.html) remplace la carte signal dans le DOM.
+       L'utilisatrice voit la fiche complete (5 services) sans quitter le dashboard. #}
+    {% if signal.niche_detectee %}
+    <div class="flex items-center gap-2">
+        <button
+            hx-post="/analyser"
+            hx-vals='{"mot_cle": "{{ signal.niche_detectee }}"}'
+            hx-target="#signal-{{ signal.id }}"
+            hx-swap="outerHTML"
+            hx-indicator="#loader-{{ signal.id }}"
+            class="px-3 py-1.5 text-xs font-medium bg-floouzz-600/30 text-floouzz-300 border border-floouzz-700/40 rounded-lg hover:bg-floouzz-600/50 transition flex items-center gap-2"
+        >
+            <span>&rarr; Analyser "{{ signal.niche_detectee }}"</span>
+        </button>
+        <span id="loader-{{ signal.id }}" class="htmx-indicator text-xs text-gray-500">
+            Analyse en cours...
+        </span>
+    </div>
+    {% endif %}
+
+    {# ---------------- Tags + mots-cles SEO (cliquables -> analyse) ---------------- #}
     {% if signal.tags or signal.mots_cles_seo %}
     <div class="flex flex-wrap items-center gap-1.5 pt-2 border-t border-gray-800">
         {% for tag in signal.tags %}
@@ -124,11 +150,20 @@
             {{ tag }}
         </a>
         {% endfor %}
+        {# Mots-cles SEO : chaque pill est un bouton HTMX qui lance une analyse
+           complete directement. La fiche resultante remplace la carte signal. #}
         {% for mot in signal.mots_cles_seo %}
-        <a href="/analyser?mot_cle={{ mot }}"
-           class="px-2 py-0.5 rounded-full text-xs bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-700 hover:text-white transition">
+        <button
+            hx-post="/analyser"
+            hx-vals='{"mot_cle": "{{ mot }}"}'
+            hx-target="#signal-{{ signal.id }}"
+            hx-swap="outerHTML"
+            hx-indicator="#loader-{{ signal.id }}"
+            class="px-2 py-0.5 rounded-full text-xs bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-700 hover:text-white transition cursor-pointer"
+            title="Analyser « {{ mot }} »"
+        >
             {{ mot }}
-        </a>
+        </button>
         {% endfor %}
     </div>
     {% endif %}

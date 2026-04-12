@@ -30,7 +30,7 @@ from app.services.sources.base import fetch_source
 logger = logging.getLogger(__name__)
 
 # Limite du nombre de decouvertes enrichies en un scan (maitrise du cout IA)
-MAX_DECOUVERTES_PAR_SCAN = 30
+MAX_DECOUVERTES_PAR_SCAN = 50
 
 
 # ---------------------------------------------------------------------------

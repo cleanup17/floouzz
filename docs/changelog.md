@@ -2,6 +2,40 @@
 
 > Tickets de dette technique : voir [dette-technique.md](dette-technique.md)
 
+## [0.5.6] — 2026-04-12
+
+### Marketplace Gap Detector — presence vendeurs sur marketplaces FR
+
+**Ajoute :**
+- Service `app/services/marketplace_gap.py` : detecte les vendeurs actifs
+  sur les marketplaces FR (Etsy, Rakuten, eBay) via 3 requetes SerpAPI
+  paralleles avec footprints Google `site:`. Comptage deterministe
+  (`total_results`) + echantillon des 3 premiers produits par plateforme.
+- **Pas d'appel Claude** : scoring mathematique pur base sur le total
+  cumule et le nombre de plateformes actives. Cout : ~0.006$/analyse
+  (3 SerpAPI seuls).
+- 4 verdicts : AUCUN (0 vendeur) / FAIBLE (<50 resultats, marche
+  emergent) / MOYEN (50-500, sweet spot) / SATURE (500+, forte
+  concurrence). Score 0-10 lineaire.
+- Recommandations actionnables par verdict : opportunite, positionnement,
+  plateforme dominante, strategie de differenciation.
+- Cache 30 jours dans `cache_ia` avec `source='marketplace_gap'`.
+- Route `POST /analyser` : `asyncio.gather` etendu a **5 services
+  paralleles** (pipeline_ia + serp_gap + affiliate_finder + saisonnalite
+  + marketplace_gap).
+- Nouveau champ `analyses.marketplace_gap JSONB` (migration `phase10.sql`).
+- Bloc "Marketplaces (N/3 actives)" dans `partials/fiche.html` : badge
+  verdict colore (SATURE=rouge, MOYEN=jaune, FAIBLE=vert, AUCUN=gris),
+  grille 3 colonnes avec compteur par plateforme, recommandations,
+  exemples de produits repliables avec liens vers les listings.
+- Section "Marketplaces" dans l'export Markdown avec tableau par
+  plateforme (Resultats / Echantillon).
+- Fixture `mock_marketplace_gap` dans `tests/conftest.py`.
+
+**Tests :** 108 PASS, aucune regression.
+
+---
+
 ## [0.5.5] — 2026-04-12
 
 ### Detection de saisonnalite — analyse Google Trends 12 mois

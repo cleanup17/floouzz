@@ -357,6 +357,26 @@ def mock_saisonnalite(monkeypatch) -> AsyncMock:
 
 
 @pytest.fixture
+def mock_expand_keywords(monkeypatch) -> AsyncMock:
+    """
+    Patch app.routers.niches.expand_keywords pour eviter les appels reels
+    Claude Haiku pendant les tests.
+    """
+    mock = AsyncMock(return_value={
+        "mot_cle": "test",
+        "nb_variantes": 4,
+        "par_intention": {
+            "informationnelle": ["comment tester", "guide test"],
+            "commerciale": ["meilleur test"],
+            "transactionnelle": ["acheter test"],
+            "locale": [],
+        },
+    })
+    monkeypatch.setattr("app.routers.niches.expand_keywords", mock)
+    return mock
+
+
+@pytest.fixture
 def mock_marketplace_gap(monkeypatch) -> AsyncMock:
     """
     Patch app.routers.niches.analyser_marketplace.
@@ -407,8 +427,9 @@ def mocks_analyser(
     mock_affiliate_finder: AsyncMock,
     mock_saisonnalite: AsyncMock,
     mock_marketplace_gap: AsyncMock,
+    mock_expand_keywords: AsyncMock,
 ) -> dict[str, AsyncMock]:
-    """Regroupe les 7 mocks necessaires a un test du POST /analyser."""
+    """Regroupe les 8 mocks necessaires a un test du POST /analyser."""
     return {
         "pipeline_ia": mock_pipeline_ia,
         "google_trends": mock_google_trends,
@@ -417,6 +438,7 @@ def mocks_analyser(
         "affiliate_finder": mock_affiliate_finder,
         "saisonnalite": mock_saisonnalite,
         "marketplace_gap": mock_marketplace_gap,
+        "expand_keywords": mock_expand_keywords,
     }
 
 

@@ -17,6 +17,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models import Analyse, Niche, Signal, Thematique
 from app.services.affiliate_finder import chercher_affiliation
+from app.services.expand_keywords import expand_keywords
 from app.services.marketplace_gap import analyser_marketplace
 from app.services.pipeline_ia import analyser as analyser_pipeline
 from app.services.saisonnalite import analyser_saisonnalite
@@ -197,6 +198,13 @@ async def analyser_niche(request: Request, db: AsyncSession = Depends(get_db)):
 
     await db.commit()
 
+    # Expansion mots-cles longue traine (sequentiel apres gather pour
+    # beneficier du resume_fr de pipeline_ia comme contexte)
+    keywords = await expand_keywords(
+        mot_cle=mot_cle,
+        contexte=resultat.get("resume_fr"),
+    )
+
     # Recharger l'analyse avec ses signaux pour le rendu
     stmt = (
         select(Analyse)
@@ -214,6 +222,7 @@ async def analyser_niche(request: Request, db: AsyncSession = Depends(get_db)):
         "niche": niche,
         "analyse": analyse,
         "nb_analyses": nb_analyses,
+        "keywords": keywords,
     })
 
 
@@ -299,4 +308,5 @@ async def page_analyse(
         "niche": niche,
         "analyse": analyse,
         "nb_analyses": nb_analyses,
+        "keywords": None,
     })

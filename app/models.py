@@ -104,6 +104,12 @@ class Analyse(Base):
     # recommandations, requetes_utilisees
     marketplace_gap: Mapped[dict | None] = mapped_column(JSONB)
 
+    # Retour brut de international.analyser_international() (Score International)
+    # Contient : nb_marches_analyses, marches (pays/code/mot_cle_traduit/
+    # total_resultats/nb_top5_editorial/nb_ads/score/verdict/raison),
+    # recommandation, meilleurs_marches
+    international: Mapped[dict | None] = mapped_column(JSONB)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

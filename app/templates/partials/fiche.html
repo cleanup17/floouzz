@@ -770,6 +770,71 @@
     </section>
     {% endif %}
 
+    {# ---------------- Marches internationaux ---------------- #}
+    {% if international_data and international_data.marches %}
+    {% set intl = international_data %}
+    {% set intl_verdict_couleurs = {
+        'VIERGE':   'bg-green-500/20  text-green-300  border-green-500/40',
+        'EMERGENT': 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
+        'MATURE':   'bg-red-500/20    text-red-300    border-red-500/40',
+    } %}
+    <section class="pt-4 border-t border-gray-800">
+        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Marches internationaux
+            <span class="text-gray-600 normal-case">({{ intl.nb_marches_analyses }} analyses)</span>
+        </h3>
+
+        {% if intl.recommandation %}
+        <p class="text-sm text-gray-300 mb-4 leading-relaxed">{{ intl.recommandation }}</p>
+        {% endif %}
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            {% for m in intl.marches %}
+            {% set mv_class = intl_verdict_couleurs.get(m.verdict, 'bg-gray-500/20 text-gray-300 border-gray-500/40') %}
+            {% set score_color = 'text-green-400' if m.score >= 7 else ('text-yellow-400' if m.score >= 4 else 'text-red-400') %}
+            <div class="bg-gray-800/40 border border-gray-700/50 rounded-lg p-3">
+                {# Header pays + score #}
+                <div class="flex items-start justify-between gap-2 mb-2">
+                    <h4 class="text-sm text-white font-medium">{{ m.pays }}</h4>
+                    <span class="text-lg font-bold {{ score_color }} flex-shrink-0">
+                        {{ m.score }}<span class="text-xs text-gray-600">/10</span>
+                    </span>
+                </div>
+
+                {# Badge verdict #}
+                <span class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold border mb-2 {{ mv_class }}">
+                    {{ m.verdict }}
+                </span>
+
+                {# Mot-cle traduit #}
+                <p class="text-xs text-gray-500 italic mb-2 truncate" title="{{ m.mot_cle_traduit }}">
+                    "{{ m.mot_cle_traduit }}"
+                </p>
+
+                {# Stats compactes #}
+                <div class="text-xs text-gray-500 space-y-0.5 mb-3">
+                    <p>{{ m.total_resultats|string|replace('000000', 'M')|replace('000', 'K') if m.total_resultats >= 1000 else m.total_resultats }} res.</p>
+                    <p>{{ m.nb_ads }} ad{{ 's' if m.nb_ads != 1 else '' }}</p>
+                </div>
+
+                {# Bouton analyser uniquement si VIERGE ou EMERGENT #}
+                {% if m.verdict in ('VIERGE', 'EMERGENT') %}
+                <button
+                    hx-post="/analyser"
+                    hx-vals='{"mot_cle": "{{ m.mot_cle_traduit }}"}'
+                    hx-target="closest article"
+                    hx-swap="outerHTML"
+                    class="w-full px-2 py-1 text-xs font-medium bg-floouzz-600/20 text-floouzz-300 border border-floouzz-700/30 rounded hover:bg-floouzz-600/40 transition text-center"
+                >
+                    &rarr; Analyser
+                </button>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
     {# ---------------- Footer ---------------- #}
     {# Cout nominal de l'analyse : somme des services appeles.
        Pour l'instant cout fixe (sans detection cache hit). #}
@@ -781,6 +846,7 @@
     {% if analyse.marketplace_gap %}{% set _ = cout_services.append(0.006) %}{% endif %}
     {% if keywords and keywords.nb_variantes %}{% set _ = cout_services.append(0.002) %}{% endif %}
     {% if clusters and clusters.nb_clusters %}{% set _ = cout_services.append(0.002) %}{% endif %}
+    {% if analyse.international %}{% set _ = cout_services.append(0.010) %}{% endif %}
     {% set cout_total = cout_services|sum %}
     <footer class="flex items-center justify-between pt-4 border-t border-gray-800 text-sm">
         <div class="flex items-center gap-4">

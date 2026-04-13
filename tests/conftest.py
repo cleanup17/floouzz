@@ -407,6 +407,46 @@ def mock_cluster_keywords(monkeypatch) -> AsyncMock:
 
 
 @pytest.fixture
+def mock_international(monkeypatch) -> AsyncMock:
+    """
+    Patch app.routers.niches.analyser_international pour eviter les appels
+    reels Claude Haiku + SerpAPI pendant les tests.
+    """
+    mock = AsyncMock(return_value={
+        "mot_cle": "test",
+        "nb_marches_analyses": 4,
+        "marches": [
+            {
+                "pays": "Italie",
+                "code": "it",
+                "mot_cle_traduit": "test italiano",
+                "total_resultats": 8200,
+                "nb_top5_editorial": 0,
+                "nb_ads": 0,
+                "score": 10,
+                "verdict": "VIERGE",
+                "raison": "8 200 resultats, 0 annonceur, 0 editorial.",
+            },
+            {
+                "pays": "USA",
+                "code": "en",
+                "mot_cle_traduit": "test english",
+                "total_resultats": 500000,
+                "nb_top5_editorial": 3,
+                "nb_ads": 4,
+                "score": 2,
+                "verdict": "MATURE",
+                "raison": "500 000 resultats, 4 annonceurs.",
+            },
+        ],
+        "recommandation": "Italie est vierge — opportunite prioritaire.",
+        "meilleurs_marches": ["it"],
+    })
+    monkeypatch.setattr("app.routers.niches.analyser_international", mock)
+    return mock
+
+
+@pytest.fixture
 def mock_marketplace_gap(monkeypatch) -> AsyncMock:
     """
     Patch app.routers.niches.analyser_marketplace.
@@ -459,8 +499,9 @@ def mocks_analyser(
     mock_marketplace_gap: AsyncMock,
     mock_expand_keywords: AsyncMock,
     mock_cluster_keywords: AsyncMock,
+    mock_international: AsyncMock,
 ) -> dict[str, AsyncMock]:
-    """Regroupe les 9 mocks necessaires a un test du POST /analyser."""
+    """Regroupe les 10 mocks necessaires a un test du POST /analyser."""
     return {
         "pipeline_ia": mock_pipeline_ia,
         "google_trends": mock_google_trends,
@@ -471,6 +512,7 @@ def mocks_analyser(
         "marketplace_gap": mock_marketplace_gap,
         "expand_keywords": mock_expand_keywords,
         "cluster_keywords": mock_cluster_keywords,
+        "international": mock_international,
     }
 
 

@@ -164,6 +164,37 @@
         </div>
         {% endif %}
 
+        {# Signaux enrichis (grille compacte) #}
+        {% if gap.signaux %}
+        {% set sig = gap.signaux %}
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+            <div class="bg-gray-800/40 border border-gray-700/50 rounded px-3 py-2 text-center">
+                <p class="text-lg font-bold {% if sig.nb_forums_top10 >= 2 %}text-green-400{% elif sig.nb_forums_top10 == 1 %}text-yellow-400{% else %}text-gray-600{% endif %}">
+                    {{ sig.nb_forums_top10 }}
+                </p>
+                <p class="text-xs text-gray-500">Forums / QA</p>
+            </div>
+            <div class="bg-gray-800/40 border border-gray-700/50 rounded px-3 py-2 text-center">
+                <p class="text-lg font-bold {% if sig.nb_pages_sans_date >= 5 %}text-green-400{% elif sig.nb_pages_sans_date >= 3 %}text-yellow-400{% else %}text-gray-600{% endif %}">
+                    {{ sig.nb_pages_sans_date }}
+                </p>
+                <p class="text-xs text-gray-500">Sans date</p>
+            </div>
+            <div class="bg-gray-800/40 border border-gray-700/50 rounded px-3 py-2 text-center">
+                <p class="text-lg font-bold {% if sig.wikipedia_present %}text-orange-400{% else %}text-gray-600{% endif %}">
+                    {% if sig.wikipedia_present %}&#10003;{% else %}&minus;{% endif %}
+                </p>
+                <p class="text-xs text-gray-500">Wikipedia</p>
+            </div>
+            <div class="bg-gray-800/40 border border-gray-700/50 rounded px-3 py-2 text-center">
+                <p class="text-lg font-bold {% if sig.signal_contenu_vieux %}text-green-400{% else %}text-gray-600{% endif %}">
+                    {% if sig.signal_contenu_vieux %}&#9888;{% else %}&minus;{% endif %}
+                </p>
+                <p class="text-xs text-gray-500">Contenu vieux</p>
+            </div>
+        </div>
+        {% endif %}
+
         {# Top 10 repliable (details/summary) #}
         {% if gap.top_10 %}
         <details class="bg-gray-800/40 border border-gray-700/50 rounded-lg">

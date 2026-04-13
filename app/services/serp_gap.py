@@ -14,6 +14,7 @@ Fallbacks : pas de cle API, erreur SerpAPI, erreur Claude, JSON illisible ->
 resultat neutre par defaut pour ne jamais crasher le mode Analyse.
 """
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -217,15 +218,146 @@ async def _fetcher_top_10(mot_cle: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Extraction de signaux enrichis depuis les organic_results SerpAPI
+# ---------------------------------------------------------------------------
+
+# Regex pour extraire une date (formats courants dans les snippets Google)
+# Ex: "12 avr. 2024", "2023-06-15", "15/03/2022", "Mar 12, 2025"
+_DATE_PATTERNS = [
+    # Format FR : "12 avr. 2024", "3 janvier 2023"
+    re.compile(
+        r"(\d{1,2})\s+"
+        r"(janv?\.?|févr?\.?|mars|avr\.?|mai|juin|juil\.?|août|sept\.?|oct\.?|nov\.?|déc\.?|"
+        r"janvier|fevrier|février|mars|avril|mai|juin|juillet|aout|août|septembre|octobre|novembre|decembre|décembre)"
+        r"\s+(\d{4})",
+        re.IGNORECASE,
+    ),
+    # Format ISO : "2024-04-12"
+    re.compile(r"(\d{4})-(\d{2})-(\d{2})"),
+    # Format EN : "Apr 12, 2024", "March 3, 2023"
+    re.compile(
+        r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+(\d{4})",
+        re.IGNORECASE,
+    ),
+]
+
+
+def _extraire_annee_snippet(snippet: str) -> int | None:
+    """
+    Tente d'extraire une annee (4 chiffres) depuis un snippet Google.
+    Retourne l'annee la plus recente trouvee, ou None si aucune date detectee.
+    """
+    if not snippet:
+        return None
+    annees: list[int] = []
+    for pattern in _DATE_PATTERNS:
+        for match in pattern.finditer(snippet):
+            # Extraire les groupes qui contiennent 4 chiffres
+            for group in match.groups():
+                if group and len(group) == 4 and group.isdigit():
+                    annee = int(group)
+                    if 2010 <= annee <= 2030:
+                        annees.append(annee)
+    return max(annees) if annees else None
+
+
+def _calculer_signaux_enrichis(
+    organic_results: list[dict],
+    annee_courante: int,
+) -> dict[str, Any]:
+    """
+    Calcule les signaux enrichis depuis les organic_results SerpAPI.
+    Ces signaux sont injectes dans le prompt Claude + stockes dans le
+    resultat final pour affichage UI.
+
+    Retourne un dict avec :
+      - nb_forums_top10 : int (reddit, quora, stackoverflow, forums.*)
+      - nb_pages_sans_date : int (aucune date detectee dans le snippet)
+      - wikipedia_present : bool
+      - signal_contenu_vieux : bool (majorite des pages datees > 2 ans)
+      - nb_pollution : int (pinterest, dailymotion, instagram, youtube...)
+      - annees_detectees : list[int|None] (1 par resultat, None si pas de date)
+    """
+    nb_forums = 0
+    nb_sans_date = 0
+    wikipedia_present = False
+    nb_pollution = 0
+    annees_detectees: list[int | None] = []
+    nb_vieux = 0  # pages avec date > 2 ans
+    nb_dates = 0  # pages avec date detectee
+
+    for raw in organic_results:
+        url = (raw.get("link") or "").lower()
+        snippet = raw.get("snippet") or ""
+
+        try:
+            netloc = urlparse(url).netloc.lower()
+        except Exception:
+            netloc = ""
+
+        # Forums / QA
+        if any(d in netloc for d in DOMAINES_FORUM) or PATTERNS_FORUM_URL.search(netloc):
+            nb_forums += 1
+
+        # Wikipedia
+        if any(d in netloc for d in DOMAINES_WIKIPEDIA):
+            wikipedia_present = True
+
+        # Pollution (reseaux sociaux)
+        if any(d in netloc for d in DOMAINES_POLLUTION):
+            nb_pollution += 1
+
+        # Date dans le snippet
+        annee = _extraire_annee_snippet(snippet)
+        annees_detectees.append(annee)
+        if annee is None:
+            nb_sans_date += 1
+        else:
+            nb_dates += 1
+            if annee_courante - annee >= 2:
+                nb_vieux += 1
+
+    # Signal "contenu vieux" : majorite des pages datees ont > 2 ans
+    signal_contenu_vieux = (nb_dates > 0 and nb_vieux > nb_dates / 2)
+
+    return {
+        "nb_forums_top10": nb_forums,
+        "nb_pages_sans_date": nb_sans_date,
+        "wikipedia_present": wikipedia_present,
+        "signal_contenu_vieux": signal_contenu_vieux,
+        "nb_pollution": nb_pollution,
+        "annees_detectees": annees_detectees,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Formatage des resultats pour Claude
 # ---------------------------------------------------------------------------
 
-def _formatter_resultats_pour_claude(organic_results: list[dict]) -> str:
+def _formatter_resultats_pour_claude(
+    organic_results: list[dict],
+    signaux: dict[str, Any],
+) -> str:
     """
     Construit un bloc texte compact pour Claude.
-    4 lignes par resultat : position+domaine+type / title / url / snippet.
+    5 lignes par resultat : position+domaine+type / title / url / snippet / date.
+    Ajoute un bloc synthese des signaux enrichis en en-tete pour que Claude
+    les prenne en compte dans son jugement.
     """
     lignes = []
+
+    # Synthese des signaux enrichis (contexte pour Claude)
+    lignes.append("SIGNAUX ENRICHIS DETECTES :")
+    lignes.append(f"  - Forums/QA dans le top 10 : {signaux['nb_forums_top10']}")
+    lignes.append(f"  - Pages sans date (snippet) : {signaux['nb_pages_sans_date']}")
+    lignes.append(f"  - Wikipedia present : {'oui' if signaux['wikipedia_present'] else 'non'}")
+    lignes.append(f"  - Contenu majoritairement vieux (>2 ans) : {'oui' if signaux['signal_contenu_vieux'] else 'non'}")
+    lignes.append(f"  - Pollution reseaux sociaux : {signaux['nb_pollution']}")
+    lignes.append("")
+
+    lignes.append("RESULTATS BRUTS :")
+    annees = signaux.get("annees_detectees") or []
+
     for i, raw in enumerate(organic_results, 1):
         title = (raw.get("title") or "").strip()
         url = (raw.get("link") or "").strip()
@@ -237,8 +369,10 @@ def _formatter_resultats_pour_claude(organic_results: list[dict]) -> str:
             domaine = ""
 
         type_page = _detecter_type_page(url)
+        annee = annees[i - 1] if i - 1 < len(annees) else None
+        date_label = f" | date={annee}" if annee else " | pas de date"
 
-        lignes.append(f"[{i}] {domaine} ({type_page})")
+        lignes.append(f"[{i}] {domaine} ({type_page}{date_label})")
         lignes.append(f"    Title : {title}")
         lignes.append(f"    URL : {url}")
         if snippet:
@@ -248,11 +382,15 @@ def _formatter_resultats_pour_claude(organic_results: list[dict]) -> str:
     return "\n".join(lignes)
 
 
-def _extraire_top_10_structure(organic_results: list[dict]) -> list[dict]:
+def _extraire_top_10_structure(
+    organic_results: list[dict],
+    signaux: dict[str, Any],
+) -> list[dict]:
     """
     Construit la liste structuree du top 10 pour le stockage (cache + BDD).
-    Plus concis que les organic_results bruts de SerpAPI.
+    Inclut la date extraite du snippet pour chaque resultat.
     """
+    annees = signaux.get("annees_detectees") or []
     top = []
     for i, raw in enumerate(organic_results, 1):
         url = (raw.get("link") or "").strip()
@@ -268,6 +406,7 @@ def _extraire_top_10_structure(organic_results: list[dict]) -> list[dict]:
             "domaine": domaine,
             "type_page": _detecter_type_page(url),
             "snippet": (raw.get("snippet") or "").strip()[:MAX_SNIPPET_CHARS],
+            "annee_snippet": annees[i - 1] if i - 1 < len(annees) else None,
         })
     return top
 
@@ -310,6 +449,24 @@ CRITERES D'EVALUATION :
 
 5. Signaux de niche travaillee : titles avec benefice clair, variantes long
    tail, guides comparatifs en top 10 = opportunite faible.
+
+6. Anciennete du contenu :
+   - Pages sans date dans le snippet = contenu non maintenu = opportunite
+   - Majorite des pages datees de plus de 2 ans = niche negligee, contenu
+     frais peut facilement doubler
+   - Pages recentes (<1 an) = concurrence active, plus difficile
+
+7. Signaux structurels du top 10 :
+   - Beaucoup de forums/Reddit/Quora = Google cherche de la reference, il
+     n'en trouve pas = opportunite tres forte
+   - Wikipedia present = niche mature/generale, slot intouchable mais pas
+     bloquant pour les autres positions
+   - Pollution reseaux sociaux (Pinterest, Dailymotion, Instagram...) =
+     Google desespere, enorme opportunite
+
+Les signaux enrichis sont fournis en en-tete des resultats. Utilise-les
+pour affiner ton jugement, surtout sur la dimension "fraicheur" et
+"qualite des concurrents".
 
 ATTENTION aux pieges :
 - Un title court comme "Pennylane" ou "Bebe Nacre" peut etre une marque dominante
@@ -386,10 +543,11 @@ def _normaliser_resultat_claude(
     brut: dict,
     mot_cle: str,
     top_10: list[dict],
+    signaux: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Valide et clamp le JSON retourne par Claude.
-    Ajoute mot_cle et top_10 dans le resultat final pour tracabilite.
+    Ajoute mot_cle, top_10 et signaux enrichis dans le resultat final.
     """
     defaut = _resultat_par_defaut(mot_cle, "normalisation")
 
@@ -421,6 +579,7 @@ def _normaliser_resultat_claude(
         "opportunites": opportunites,
         "faiblesses_detectees": faiblesses,
         "top_10": top_10,
+        "signaux": signaux,
     }
 
 
@@ -478,32 +637,64 @@ async def analyser_serp(
         logger.info(f"SERP Gap : aucun resultat SerpAPI pour '{mot_cle[:40]}'")
         return _resultat_par_defaut(mot_cle, "aucun_resultat_serp")
 
-    top_10 = _extraire_top_10_structure(organic_results)
+    # --- Extraction des signaux enrichis (sans appel API supplementaire) ------
+    annee_courante = datetime.now(timezone.utc).year
+    signaux = _calculer_signaux_enrichis(organic_results, annee_courante)
+    top_10 = _extraire_top_10_structure(organic_results, signaux)
 
     # --- Cle API Claude absente : fallback avec top 10 brut -------------------
     if not settings.ANTHROPIC_API_KEY:
         logger.debug("SERP Gap : ANTHROPIC_API_KEY non configuree")
         resultat = _resultat_par_defaut(mot_cle, "cle_api_claude_absente")
         resultat["top_10"] = top_10
+        resultat["signaux"] = signaux
         return resultat
 
-    # --- Appel Claude ---------------------------------------------------------
-    resultats_formates = _formatter_resultats_pour_claude(organic_results)
+    # --- Appel Claude avec retry backoff exponentiel ---------------------------
+    # 5 services Claude sont lances quasi-simultanement dans asyncio.gather,
+    # ce qui peut declencher des rate limits (429) ou des erreurs transitoires.
+    # Retry 3 fois avec delais 1s, 2s, 4s pour absorber les pics.
+    resultats_formates = _formatter_resultats_pour_claude(organic_results, signaux)
     prompt = _construire_prompt(mot_cle, resultats_formates, len(organic_results))
 
-    try:
-        client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-        message = await client.messages.create(
-            model=MODELE_CLAUDE,
-            max_tokens=MAX_TOKENS,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        reponse = message.content[0].text.strip() if message.content else ""
-        logger.info(f"SERP Gap : reponse Claude ({len(reponse)} chars) pour '{mot_cle[:40]}'")
-    except Exception as e:
-        logger.error(f"SERP Gap : erreur Claude — {e}")
+    max_tentatives = 3
+    reponse = ""
+    derniere_erreur: Exception | None = None
+
+    for tentative in range(max_tentatives):
+        try:
+            client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+            message = await client.messages.create(
+                model=MODELE_CLAUDE,
+                max_tokens=MAX_TOKENS,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            reponse = message.content[0].text.strip() if message.content else ""
+            logger.info(
+                f"SERP Gap : reponse Claude ({len(reponse)} chars) "
+                f"pour '{mot_cle[:40]}'"
+                f"{f' (tentative {tentative + 1})' if tentative > 0 else ''}"
+            )
+            derniere_erreur = None
+            break
+        except Exception as e:
+            derniere_erreur = e
+            if tentative < max_tentatives - 1:
+                delai = 2 ** tentative  # 1s, 2s, 4s
+                logger.warning(
+                    f"SERP Gap : erreur Claude tentative {tentative + 1}/{max_tentatives} "
+                    f"— retry dans {delai}s ({e})"
+                )
+                await asyncio.sleep(delai)
+            else:
+                logger.error(
+                    f"SERP Gap : erreur Claude apres {max_tentatives} tentatives — {e}"
+                )
+
+    if derniere_erreur is not None:
         resultat = _resultat_par_defaut(mot_cle, "erreur_api_claude")
         resultat["top_10"] = top_10
+        resultat["signaux"] = signaux
         return resultat
 
     # --- Parsing + normalisation ----------------------------------------------
@@ -512,9 +703,10 @@ async def analyser_serp(
         logger.warning(f"SERP Gap : JSON illisible — fallback ({reponse[:200]})")
         resultat = _resultat_par_defaut(mot_cle, "json_illisible")
         resultat["top_10"] = top_10
+        resultat["signaux"] = signaux
         return resultat
 
-    resultat = _normaliser_resultat_claude(brut, mot_cle, top_10)
+    resultat = _normaliser_resultat_claude(brut, mot_cle, top_10, signaux)
 
     # --- Ecriture cache 7 jours -----------------------------------------------
     if session is not None:

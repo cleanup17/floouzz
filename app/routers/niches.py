@@ -18,6 +18,7 @@ from app.database import get_db
 from app.models import Analyse, Niche, Signal, Thematique
 from app.services.affiliate_finder import chercher_affiliation
 from app.services.expand_keywords import expand_keywords
+from app.services.keyword_clustering import cluster_keywords
 from app.services.marketplace_gap import analyser_marketplace
 from app.services.pipeline_ia import analyser as analyser_pipeline
 from app.services.saisonnalite import analyser_saisonnalite
@@ -205,6 +206,14 @@ async def analyser_niche(request: Request, db: AsyncSession = Depends(get_db)):
         contexte=resultat.get("resume_fr"),
     )
 
+    # Clustering des variantes en sous-niches testables (sequentiel apres
+    # expand_keywords dont il utilise les variantes comme entree)
+    clusters = await cluster_keywords(
+        mot_cle=mot_cle,
+        keywords=keywords,
+        contexte=resultat.get("resume_fr"),
+    )
+
     # Recharger l'analyse avec ses signaux pour le rendu
     stmt = (
         select(Analyse)
@@ -223,6 +232,7 @@ async def analyser_niche(request: Request, db: AsyncSession = Depends(get_db)):
         "analyse": analyse,
         "nb_analyses": nb_analyses,
         "keywords": keywords,
+        "clusters": clusters,
     })
 
 
@@ -309,4 +319,5 @@ async def page_analyse(
         "analyse": analyse,
         "nb_analyses": nb_analyses,
         "keywords": None,
+        "clusters": None,
     })

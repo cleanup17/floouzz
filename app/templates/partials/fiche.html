@@ -637,6 +637,71 @@
     </section>
     {% endif %}
 
+    {# ---------------- Sous-niches a explorer (keyword_clustering) ---------------- #}
+    {% if clusters and clusters.nb_clusters and clusters.nb_clusters > 0 %}
+    {% set cl = clusters %}
+    <section class="pt-4 border-t border-gray-800">
+        <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Sous-niches a explorer
+            <span class="text-gray-600 normal-case">({{ cl.nb_clusters }} clusters)</span>
+        </h3>
+
+        <div class="space-y-3">
+            {% for cluster in cl.clusters %}
+            {% set score_color = 'text-green-400' if cluster.score_potentiel >= 8 else ('text-yellow-400' if cluster.score_potentiel >= 5 else 'text-gray-500') %}
+            <div class="bg-gray-800/40 border border-gray-700/50 rounded-lg p-4">
+                {# Header : nom + score #}
+                <div class="flex items-start justify-between gap-3 mb-2">
+                    <div class="flex-1 min-w-0">
+                        <h4 class="text-sm text-white font-medium">{{ cluster.nom }}</h4>
+                        {% if cluster.monetisation %}
+                        <p class="text-xs text-gray-500 mt-0.5">{{ cluster.monetisation }}</p>
+                        {% endif %}
+                    </div>
+                    <span class="text-lg font-bold {{ score_color }} flex-shrink-0">
+                        {{ cluster.score_potentiel }}<span class="text-xs text-gray-600">/10</span>
+                    </span>
+                </div>
+
+                {# Raison #}
+                {% if cluster.raison %}
+                <p class="text-xs text-gray-400 italic mb-3">{{ cluster.raison }}</p>
+                {% endif %}
+
+                {# Pills mots-cles cliquables #}
+                {% if cluster.mots_cles %}
+                <div class="flex flex-wrap gap-1.5 mb-3">
+                    {% for mot in cluster.mots_cles %}
+                    <button
+                        hx-post="/analyser"
+                        hx-vals='{"mot_cle": "{{ mot }}"}'
+                        hx-target="closest article"
+                        hx-swap="outerHTML"
+                        class="px-2 py-0.5 rounded-full text-xs bg-gray-700/50 text-gray-300 border border-gray-600/50 hover:bg-gray-600/50 hover:text-white transition cursor-pointer"
+                        title="Analyser « {{ mot }} »"
+                    >
+                        {{ mot }}
+                    </button>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {# Bouton analyser la sous-niche #}
+                <button
+                    hx-post="/analyser"
+                    hx-vals='{"mot_cle": "{{ cluster.nom }}"}'
+                    hx-target="closest article"
+                    hx-swap="outerHTML"
+                    class="px-3 py-1 text-xs font-medium bg-floouzz-600/20 text-floouzz-300 border border-floouzz-700/30 rounded-lg hover:bg-floouzz-600/40 transition"
+                >
+                    &rarr; Analyser "{{ cluster.nom }}"
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
     {# ---------------- Footer ---------------- #}
     {# Cout nominal de l'analyse : somme des services appeles.
        Pour l'instant cout fixe (sans detection cache hit). #}
@@ -647,6 +712,7 @@
     {% if analyse.saisonnalite %}{% set _ = cout_services.append(0.002) %}{% endif %}
     {% if analyse.marketplace_gap %}{% set _ = cout_services.append(0.006) %}{% endif %}
     {% if keywords and keywords.nb_variantes %}{% set _ = cout_services.append(0.002) %}{% endif %}
+    {% if clusters and clusters.nb_clusters %}{% set _ = cout_services.append(0.002) %}{% endif %}
     {% set cout_total = cout_services|sum %}
     <footer class="flex items-center justify-between pt-4 border-t border-gray-800 text-sm">
         <div class="flex items-center gap-4">

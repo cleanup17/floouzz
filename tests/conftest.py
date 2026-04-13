@@ -377,6 +377,36 @@ def mock_expand_keywords(monkeypatch) -> AsyncMock:
 
 
 @pytest.fixture
+def mock_cluster_keywords(monkeypatch) -> AsyncMock:
+    """
+    Patch app.routers.niches.cluster_keywords pour eviter les appels reels
+    Claude Haiku pendant les tests.
+    """
+    mock = AsyncMock(return_value={
+        "mot_cle": "test",
+        "nb_clusters": 2,
+        "clusters": [
+            {
+                "nom": "cluster test A",
+                "mots_cles": ["variante A1", "variante A2"],
+                "score_potentiel": 8,
+                "monetisation": "e-commerce",
+                "raison": "Bonne opportunite de test.",
+            },
+            {
+                "nom": "cluster test B",
+                "mots_cles": ["variante B1"],
+                "score_potentiel": 5,
+                "monetisation": "contenu/blog",
+                "raison": "Angle editorial.",
+            },
+        ],
+    })
+    monkeypatch.setattr("app.routers.niches.cluster_keywords", mock)
+    return mock
+
+
+@pytest.fixture
 def mock_marketplace_gap(monkeypatch) -> AsyncMock:
     """
     Patch app.routers.niches.analyser_marketplace.
@@ -428,8 +458,9 @@ def mocks_analyser(
     mock_saisonnalite: AsyncMock,
     mock_marketplace_gap: AsyncMock,
     mock_expand_keywords: AsyncMock,
+    mock_cluster_keywords: AsyncMock,
 ) -> dict[str, AsyncMock]:
-    """Regroupe les 8 mocks necessaires a un test du POST /analyser."""
+    """Regroupe les 9 mocks necessaires a un test du POST /analyser."""
     return {
         "pipeline_ia": mock_pipeline_ia,
         "google_trends": mock_google_trends,
@@ -439,6 +470,7 @@ def mocks_analyser(
         "saisonnalite": mock_saisonnalite,
         "marketplace_gap": mock_marketplace_gap,
         "expand_keywords": mock_expand_keywords,
+        "cluster_keywords": mock_cluster_keywords,
     }
 
 

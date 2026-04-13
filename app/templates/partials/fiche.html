@@ -638,10 +638,27 @@
     {% endif %}
 
     {# ---------------- Footer ---------------- #}
+    {# Cout nominal de l'analyse : somme des services appeles.
+       Pour l'instant cout fixe (sans detection cache hit). #}
+    {% set cout_services = [] %}
+    {% if analyse.pipeline_ia %}{% set _ = cout_services.append(0.010) %}{% endif %}
+    {% if analyse.serp_gap %}{% set _ = cout_services.append(0.014) %}{% endif %}
+    {% if analyse.affiliate_finder %}{% set _ = cout_services.append(0.016) %}{% endif %}
+    {% if analyse.saisonnalite %}{% set _ = cout_services.append(0.002) %}{% endif %}
+    {% if analyse.marketplace_gap %}{% set _ = cout_services.append(0.006) %}{% endif %}
+    {% if keywords and keywords.nb_variantes %}{% set _ = cout_services.append(0.002) %}{% endif %}
+    {% set cout_total = cout_services|sum %}
     <footer class="flex items-center justify-between pt-4 border-t border-gray-800 text-sm">
-        <span class="text-gray-500">
-            {{ nb_analyses }} analyse{{ 's' if nb_analyses > 1 else '' }} pour cette niche
-        </span>
+        <div class="flex items-center gap-4">
+            <span class="text-gray-500">
+                {{ nb_analyses }} analyse{{ 's' if nb_analyses > 1 else '' }} pour cette niche
+            </span>
+            {% if cout_total > 0 %}
+            <span class="text-gray-600 text-xs" title="{{ cout_services|length }} service{{ 's' if cout_services|length > 1 else '' }}">
+                ~${{ "%.3f"|format(cout_total) }}
+            </span>
+            {% endif %}
+        </div>
         <div class="flex items-center gap-4">
             <a href="/exports/niche/{{ niche.id }}/markdown"
                class="text-gray-400 hover:text-white transition">

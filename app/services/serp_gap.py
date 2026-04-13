@@ -192,9 +192,12 @@ async def _ecrire_cache(
 # Appel SerpAPI
 # ---------------------------------------------------------------------------
 
-async def _fetcher_top_10(mot_cle: str) -> list[dict]:
+async def _fetcher_serp(mot_cle: str) -> tuple[list[dict], list[dict]]:
     """
-    Appelle SerpAPI google engine et retourne les organic_results tronques a TOP_N.
+    Appelle SerpAPI google engine et retourne :
+      - organic_results tronques a TOP_N
+      - ads (annonces Google Ads, peut etre vide)
+
     Leve RuntimeError si SERPAPI_KEY absente, Exception si erreur reseau.
     """
     if not settings.SERPAPI_KEY:
@@ -214,7 +217,9 @@ async def _fetcher_top_10(mot_cle: str) -> list[dict]:
         response.raise_for_status()
         data = response.json()
 
-    return data.get("organic_results", [])[:TOP_N]
+    organic = data.get("organic_results", [])[:TOP_N]
+    ads = data.get("ads", [])
+    return organic, ads
 
 
 # ---------------------------------------------------------------------------
@@ -331,18 +336,90 @@ def _calculer_signaux_enrichis(
 
 
 # ---------------------------------------------------------------------------
+# Extraction des signaux pub (Google Ads)
+# ---------------------------------------------------------------------------
+
+def _calculer_signaux_pub(
+    ads: list[dict],
+    organic_results: list[dict],
+) -> dict[str, Any]:
+    """
+    Analyse les annonces Google Ads retournees par SerpAPI.
+
+    Retourne un dict avec :
+      - nb_annonceurs : int (nombre d'ads)
+      - annonceurs_detectes : list[str] (domaines uniques des annonceurs)
+      - budget_estime : FAIBLE / MOYEN / ELEVE selon nb annonceurs
+      - gap_organique : bool (pub active MAIS peu de contenu editorial
+        dans le top 10 organique = opportunite affiliation/contenu)
+    """
+    # Extraction des domaines annonceurs (dedoublonnes)
+    domaines_annonceurs: list[str] = []
+    vus: set[str] = set()
+    for ad in ads:
+        displayed_link = (ad.get("displayed_link") or "").strip().lower()
+        # SerpAPI retourne "displayed_link" comme "www.example.com" ou "example.com"
+        if not displayed_link:
+            # Fallback sur le tracking_link ou link
+            link = ad.get("link") or ad.get("tracking_link") or ""
+            try:
+                displayed_link = urlparse(link).netloc.lower()
+            except Exception:
+                continue
+        if not displayed_link:
+            continue
+
+        # Nettoyer le domaine
+        domaine = displayed_link.split("/")[0].strip()
+        if domaine and domaine not in vus:
+            vus.add(domaine)
+            domaines_annonceurs.append(domaine)
+
+    nb = len(domaines_annonceurs)
+
+    # Budget estime selon le nombre d'annonceurs uniques
+    if nb >= 6:
+        budget = "ELEVE"
+    elif nb >= 3:
+        budget = "MOYEN"
+    elif nb >= 1:
+        budget = "FAIBLE"
+    else:
+        budget = "AUCUN"
+
+    # Gap organique : pub active MAIS peu de contenu editorial dans le top 10.
+    # On considere qu'il y a gap si :
+    #   - au moins 1 annonceur (marche prouve)
+    #   - ET moins de 3 pages editoriales (blog/article) dans le top 10
+    nb_editorial = 0
+    for raw in organic_results:
+        url = (raw.get("link") or "").lower()
+        type_page = _detecter_type_page(url)
+        if type_page == "blog":
+            nb_editorial += 1
+    gap_organique = nb >= 1 and nb_editorial < 3
+
+    return {
+        "nb_annonceurs": nb,
+        "annonceurs_detectes": domaines_annonceurs,
+        "budget_estime": budget,
+        "gap_organique": gap_organique,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Formatage des resultats pour Claude
 # ---------------------------------------------------------------------------
 
 def _formatter_resultats_pour_claude(
     organic_results: list[dict],
     signaux: dict[str, Any],
+    signaux_pub: dict[str, Any],
 ) -> str:
     """
     Construit un bloc texte compact pour Claude.
     5 lignes par resultat : position+domaine+type / title / url / snippet / date.
-    Ajoute un bloc synthese des signaux enrichis en en-tete pour que Claude
-    les prenne en compte dans son jugement.
+    Ajoute un bloc synthese des signaux enrichis + signaux pub en en-tete.
     """
     lignes = []
 
@@ -353,6 +430,20 @@ def _formatter_resultats_pour_claude(
     lignes.append(f"  - Wikipedia present : {'oui' if signaux['wikipedia_present'] else 'non'}")
     lignes.append(f"  - Contenu majoritairement vieux (>2 ans) : {'oui' if signaux['signal_contenu_vieux'] else 'non'}")
     lignes.append(f"  - Pollution reseaux sociaux : {signaux['nb_pollution']}")
+    lignes.append("")
+
+    # Synthese des signaux pub (Google Ads)
+    nb_ann = signaux_pub.get("nb_annonceurs", 0)
+    lignes.append("PUBLICITE GOOGLE ADS :")
+    if nb_ann > 0:
+        budget = signaux_pub.get("budget_estime", "?")
+        annonceurs = signaux_pub.get("annonceurs_detectes", [])
+        gap = signaux_pub.get("gap_organique", False)
+        lignes.append(f"  - Annonceurs actifs : {nb_ann} (budget estime : {budget})")
+        lignes.append(f"  - Domaines : {', '.join(annonceurs[:10])}")
+        lignes.append(f"  - Gap organique (pub active + peu d'editorial) : {'OUI' if gap else 'non'}")
+    else:
+        lignes.append("  - Aucune annonce Google Ads detectee sur ce mot-cle")
     lignes.append("")
 
     lignes.append("RESULTATS BRUTS :")
@@ -464,9 +555,16 @@ CRITERES D'EVALUATION :
    - Pollution reseaux sociaux (Pinterest, Dailymotion, Instagram...) =
      Google desespere, enorme opportunite
 
-Les signaux enrichis sont fournis en en-tete des resultats. Utilise-les
-pour affiner ton jugement, surtout sur la dimension "fraicheur" et
-"qualite des concurrents".
+8. Publicite Google Ads :
+   - Annonceurs actifs = marche prouve avec acheteurs reels (signal fort)
+   - Pub active MAIS faible presence editoriale organique = GAP ORGANIQUE
+     = opportunite affiliation / contenu tres haute priorite
+   - Budget ELEVE (6+ annonceurs) = marche mature et rentable
+   - Aucune pub = soit niche trop petite, soit marche pas encore decouvert
+
+Les signaux enrichis et les donnees pub sont fournis en en-tete des
+resultats. Utilise-les pour affiner ton jugement, surtout sur la dimension
+"fraicheur", "qualite des concurrents" et "preuve de marche".
 
 ATTENTION aux pieges :
 - Un title court comme "Pennylane" ou "Bebe Nacre" peut etre une marque dominante
@@ -544,10 +642,11 @@ def _normaliser_resultat_claude(
     mot_cle: str,
     top_10: list[dict],
     signaux: dict[str, Any] | None = None,
+    signaux_pub: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Valide et clamp le JSON retourne par Claude.
-    Ajoute mot_cle, top_10 et signaux enrichis dans le resultat final.
+    Ajoute mot_cle, top_10, signaux enrichis et signaux pub dans le resultat.
     """
     defaut = _resultat_par_defaut(mot_cle, "normalisation")
 
@@ -580,6 +679,7 @@ def _normaliser_resultat_claude(
         "faiblesses_detectees": faiblesses,
         "top_10": top_10,
         "signaux": signaux,
+        "pub": signaux_pub,
     }
 
 
@@ -625,7 +725,7 @@ async def analyser_serp(
 
     # --- Appel SerpAPI --------------------------------------------------------
     try:
-        organic_results = await _fetcher_top_10(mot_cle)
+        organic_results, ads_results = await _fetcher_serp(mot_cle)
     except RuntimeError as e:
         logger.warning(f"SERP Gap : SerpAPI indisponible — {e}")
         return _resultat_par_defaut(mot_cle, "serpapi_indisponible")
@@ -640,6 +740,7 @@ async def analyser_serp(
     # --- Extraction des signaux enrichis (sans appel API supplementaire) ------
     annee_courante = datetime.now(timezone.utc).year
     signaux = _calculer_signaux_enrichis(organic_results, annee_courante)
+    signaux_pub = _calculer_signaux_pub(ads_results, organic_results)
     top_10 = _extraire_top_10_structure(organic_results, signaux)
 
     # --- Cle API Claude absente : fallback avec top 10 brut -------------------
@@ -648,13 +749,16 @@ async def analyser_serp(
         resultat = _resultat_par_defaut(mot_cle, "cle_api_claude_absente")
         resultat["top_10"] = top_10
         resultat["signaux"] = signaux
+        resultat["pub"] = signaux_pub
         return resultat
 
     # --- Appel Claude avec retry backoff exponentiel ---------------------------
     # 5 services Claude sont lances quasi-simultanement dans asyncio.gather,
     # ce qui peut declencher des rate limits (429) ou des erreurs transitoires.
     # Retry 3 fois avec delais 1s, 2s, 4s pour absorber les pics.
-    resultats_formates = _formatter_resultats_pour_claude(organic_results, signaux)
+    resultats_formates = _formatter_resultats_pour_claude(
+        organic_results, signaux, signaux_pub,
+    )
     prompt = _construire_prompt(mot_cle, resultats_formates, len(organic_results))
 
     max_tentatives = 3
@@ -695,6 +799,7 @@ async def analyser_serp(
         resultat = _resultat_par_defaut(mot_cle, "erreur_api_claude")
         resultat["top_10"] = top_10
         resultat["signaux"] = signaux
+        resultat["pub"] = signaux_pub
         return resultat
 
     # --- Parsing + normalisation ----------------------------------------------
@@ -704,9 +809,10 @@ async def analyser_serp(
         resultat = _resultat_par_defaut(mot_cle, "json_illisible")
         resultat["top_10"] = top_10
         resultat["signaux"] = signaux
+        resultat["pub"] = signaux_pub
         return resultat
 
-    resultat = _normaliser_resultat_claude(brut, mot_cle, top_10, signaux)
+    resultat = _normaliser_resultat_claude(brut, mot_cle, top_10, signaux, signaux_pub)
 
     # --- Ecriture cache 7 jours -----------------------------------------------
     if session is not None:

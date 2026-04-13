@@ -195,6 +195,43 @@
         </div>
         {% endif %}
 
+        {# Publicite active (Google Ads) #}
+        {% if gap.pub and gap.pub.nb_annonceurs is defined %}
+        {% set pub = gap.pub %}
+        {% set budget_couleurs = {
+            'ELEVE':  'bg-red-500/20    text-red-300    border-red-500/40',
+            'MOYEN':  'bg-orange-500/20 text-orange-300 border-orange-500/40',
+            'FAIBLE': 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
+            'AUCUN':  'bg-gray-500/20   text-gray-300   border-gray-500/40',
+        } %}
+        {% set budget_class = budget_couleurs.get(pub.budget_estime, 'bg-gray-500/20 text-gray-300 border-gray-500/40') %}
+        <div class="mb-4">
+            <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Publicite active
+            </h4>
+            <div class="flex items-center flex-wrap gap-2 mb-2">
+                <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold border {{ budget_class }}">
+                    {{ pub.budget_estime }} ({{ pub.nb_annonceurs }} annonceur{{ 's' if pub.nb_annonceurs > 1 else '' }})
+                </span>
+                {% if pub.gap_organique %}
+                <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-green-500/20 text-green-300 border-green-500/40"
+                      title="Pub active mais contenu editorial rare = opportunite affiliation haute priorite">
+                    &#9733; Gap organique
+                </span>
+                {% endif %}
+            </div>
+            {% if pub.annonceurs_detectes %}
+            <div class="flex flex-wrap gap-1.5">
+                {% for domaine in pub.annonceurs_detectes %}
+                <span class="px-2 py-0.5 rounded-full text-xs bg-gray-800 text-gray-400 border border-gray-700">
+                    {{ domaine }}
+                </span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
         {# Top 10 repliable (details/summary) #}
         {% if gap.top_10 %}
         <details class="bg-gray-800/40 border border-gray-700/50 rounded-lg">

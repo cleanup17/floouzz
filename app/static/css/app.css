@@ -51,8 +51,11 @@
    Aucune modification de template necessaire.
 --------------------------------------------------------------------------- */
 
-/* Le bouton clique devient grise + curseur d'attente + non-recliquable */
-button.htmx-request {
+/* Le bouton clique devient grise + curseur d'attente + non-recliquable.
+   Couvre 2 cas : le bouton lui-meme porte htmx-request (pills HTMX)
+   ou le form parent porte htmx-request (formulaire /analyser). */
+button.htmx-request,
+.htmx-request button[type="submit"] {
     opacity: 0.4;
     pointer-events: none;
     cursor: wait;

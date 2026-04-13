@@ -103,6 +103,11 @@ def _rendre_markdown(niche: Niche, analyse: Analyse) -> str:
     if analyse.marketplace_gap:
         lignes += _rendre_marketplace_markdown(analyse.marketplace_gap)
 
+    # --- Amazon Market -------------------------------------------------------
+    # Section ajoutee si l'analyse a un snapshot amazon_market (v0.5.15+).
+    if analyse.amazon_market:
+        lignes += _rendre_amazon_markdown(analyse.amazon_market)
+
     return "\n".join(lignes)
 
 
@@ -371,6 +376,61 @@ def _rendre_marketplace_markdown(mp: dict) -> list[str]:
     if requetes:
         lignes += ["### Requetes Google utilisees", ""]
         lignes += [f"- `{r}`" for r in requetes]
+        lignes.append("")
+
+    return lignes
+
+
+def _rendre_amazon_markdown(amz: dict) -> list[str]:
+    """
+    Rend la section Amazon Market en Markdown.
+    Retourne une liste de lignes prete a etre concatenee au document.
+    """
+    total = amz.get("total_resultats", 0)
+    if total:
+        titre = f"## Amazon FR ({total} produits)"
+    else:
+        titre = "## Amazon FR"
+
+    lignes: list[str] = [
+        titre,
+        "",
+        f"**Score** : {amz.get('score_amazon', 'N/A')}/10 — {amz.get('verdict', 'N/A')}",
+        "",
+    ]
+
+    raison = amz.get("verdict_raison")
+    if raison:
+        lignes += [raison, ""]
+
+    # Stats
+    prix = amz.get("prix_moyen")
+    avis = amz.get("avis_median")
+    if prix is not None or avis is not None:
+        lignes.append("### Stats")
+        lignes.append("")
+        if prix is not None:
+            lignes.append(f"- **Prix moyen top 5** : {prix}€")
+        if avis is not None:
+            lignes.append(f"- **Avis median top 5** : {avis}")
+        lignes.append("")
+
+    # Top produits (tableau Markdown)
+    top = amz.get("top_produits") or []
+    if top:
+        lignes += [
+            "### Top produits",
+            "",
+            "| ASIN | Titre | Prix | Avis | Note |",
+            "| --- | --- | --- | --- | --- |",
+        ]
+        for prod in top:
+            asin = prod.get("asin") or ""
+            t = (prod.get("titre") or "").replace("|", "\\|")[:60]
+            p = f"{prod['prix']}€" if prod.get("prix") is not None else "-"
+            a = str(prod["nb_avis"]) if prod.get("nb_avis") is not None else "-"
+            n = f"{prod['note']}★" if prod.get("note") is not None else "-"
+            lignes.append(f"| {asin} | {t} | {p} | {a} | {n} |")
         lignes.append("")
 
     return lignes

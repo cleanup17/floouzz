@@ -447,6 +447,35 @@ def mock_international(monkeypatch) -> AsyncMock:
 
 
 @pytest.fixture
+def mock_amazon_market(monkeypatch) -> AsyncMock:
+    """
+    Patch app.routers.niches.analyser_amazon pour eviter les appels reels
+    SerpAPI engine=amazon pendant les tests.
+    """
+    mock = AsyncMock(return_value={
+        "mot_cle": "test",
+        "score_amazon": 7,
+        "verdict": "ETABLI",
+        "verdict_raison": "350 produits sur Amazon FR (prix moyen 25.00€).",
+        "total_resultats": 350,
+        "prix_moyen": 25.00,
+        "avis_median": 120,
+        "top_produits": [
+            {
+                "asin": "B0TEST1234",
+                "titre": "Produit test Amazon",
+                "prix": 24.90,
+                "nb_avis": 230,
+                "note": 4.5,
+                "url": "https://www.amazon.fr/dp/B0TEST1234",
+            },
+        ],
+    })
+    monkeypatch.setattr("app.routers.niches.analyser_amazon", mock)
+    return mock
+
+
+@pytest.fixture
 def mock_marketplace_gap(monkeypatch) -> AsyncMock:
     """
     Patch app.routers.niches.analyser_marketplace.
@@ -500,8 +529,9 @@ def mocks_analyser(
     mock_expand_keywords: AsyncMock,
     mock_cluster_keywords: AsyncMock,
     mock_international: AsyncMock,
+    mock_amazon_market: AsyncMock,
 ) -> dict[str, AsyncMock]:
-    """Regroupe les 10 mocks necessaires a un test du POST /analyser."""
+    """Regroupe les 11 mocks necessaires a un test du POST /analyser."""
     return {
         "pipeline_ia": mock_pipeline_ia,
         "google_trends": mock_google_trends,
@@ -513,6 +543,7 @@ def mocks_analyser(
         "expand_keywords": mock_expand_keywords,
         "cluster_keywords": mock_cluster_keywords,
         "international": mock_international,
+        "amazon_market": mock_amazon_market,
     }
 
 

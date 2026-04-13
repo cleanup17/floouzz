@@ -110,6 +110,12 @@ class Analyse(Base):
     # recommandation, meilleurs_marches
     international: Mapped[dict | None] = mapped_column(JSONB)
 
+    # Retour brut de amazon_market.analyser_amazon() (Amazon Market)
+    # Contient : score_amazon, verdict (MICRO/NICHE/ETABLI/SATURE),
+    # verdict_raison, total_resultats, prix_moyen, avis_median,
+    # top_produits (asin/titre/prix/nb_avis/note/url)
+    amazon_market: Mapped[dict | None] = mapped_column(JSONB)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

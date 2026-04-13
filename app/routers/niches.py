@@ -17,6 +17,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models import Analyse, Niche, Signal, Thematique
 from app.services.affiliate_finder import chercher_affiliation
+from app.services.amazon_market import analyser_amazon
 from app.services.expand_keywords import expand_keywords
 from app.services.international import analyser_international
 from app.services.keyword_clustering import cluster_keywords
@@ -165,6 +166,9 @@ async def analyser_niche(request: Request, db: AsyncSession = Depends(get_db)):
     # Analyse internationale (sequentiel : 1 Haiku traduction + 4 SerpAPI)
     international = await analyser_international(mot_cle=mot_cle, session=db)
 
+    # Volume produits Amazon FR (sequentiel : 1 SerpAPI engine=amazon)
+    amazon = await analyser_amazon(mot_cle=mot_cle, session=db)
+
     # Extraction des scores 0-10 avec leurs justifications
     scores = resultat["scores"]
 
@@ -188,6 +192,7 @@ async def analyser_niche(request: Request, db: AsyncSession = Depends(get_db)):
         saisonnalite=saison,
         marketplace_gap=marketplace,
         international=international,
+        amazon_market=amazon,
     )
     db.add(analyse)
     await db.flush()
